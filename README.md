@@ -31,10 +31,15 @@ permanent changes, launch the `web-ext` profile from `about:profiles`.
 
 For this example, we'll be signing an `index.html` page.
 
-1. Generate a PGP key pair if you haven't already.
+1. Generate a PGP key pair if you haven't already. Make sure it has a name and
+   email attached.
 
-2. Add your public key to https://keys.openpgp.org/ and verify the email address
-   of the User ID you're planning to sign with.
+```sh
+gpg --full-generate-key
+```
+
+2. Upload your public key to https://keys.openpgp.org/ and verify the email
+   address of the User ID you're planning to sign with.
 
 3. Decide where you're going to place your signature. For example:
 
