@@ -1,0 +1,32 @@
+{
+  "manifest_version": 2,
+  "name": "Web Verify",
+  "version": "0.1.0",
+  "description": "Verify web page authorship using OpenPGP.",
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "permissions": [
+    "<all_urls>",
+    "webRequest",
+    "webNavigation",
+    "webRequestBlocking",
+    "storage"
+  ],
+  "background": {
+    "scripts": ["vendor/openpgp.js", "scripts/background.js"]
+  },
+  "page_action": {
+    "default_icon": "icons/page-action-unknown.svg",
+    "default_title": "Web Verify",
+    "default_popup": "popup/index.html",
+    "browser_style": true,
+    "show_matches": ["<all_urls>"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "web-verify@jahed.dev"
+    }
+  }
+}
