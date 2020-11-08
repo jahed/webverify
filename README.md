@@ -1,3 +1,5 @@
+<img src="web-extension/icons/icon.svg" width="128" align='right' alt='' />
+
 # Web Verify
 
 Verify web page authorship using OpenPGP. This is an experimental project.
