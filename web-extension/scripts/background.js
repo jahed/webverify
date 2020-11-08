@@ -33,10 +33,10 @@ const getSignature = async (signatureUrl) => {
 };
 
 const verifySignature = async (signatureUrl, content) => {
+  const message = openpgp.message.fromText(content);
   const signature = await getSignature(signatureUrl);
   const keyId = await getKeyId(signature);
   const publicKeys = await getPublicKeys(keyId);
-  const message = openpgp.message.fromText(content);
   const verified = await openpgp.verify({ message, signature, publicKeys });
   const { error } = verified.signatures[0];
   if (error) {
@@ -44,12 +44,8 @@ const verifySignature = async (signatureUrl, content) => {
   }
 };
 
-const processDocument = async ({ tabId, data }) => {
-  browser.pageAction.setIcon({
-    tabId,
-    path: "icons/page-action-unknown.svg",
-  });
-
+const processDocument = async ({ tabId, url, data }) => {
+  const storageKey = `result/${url}`;
   const blob = new Blob(data, { type: "text/html" });
   const htmlText = await blob.text();
 
@@ -61,12 +57,14 @@ const processDocument = async ({ tabId, data }) => {
       const sigUrl = sigLink.getAttribute("href");
       await verifySignature(sigUrl, htmlText);
       console.log("verification success");
+      browser.storage.local.set({ [storageKey]: "verified" });
       browser.pageAction.setIcon({
         tabId,
         path: "icons/page-action-verified.svg",
       });
     } catch (error) {
       console.error("verification failed", error);
+      browser.storage.local.set({ [storageKey]: "unverified" });
       browser.pageAction.setIcon({
         tabId,
         path: "icons/page-action-unverified.svg",
@@ -74,13 +72,21 @@ const processDocument = async ({ tabId, data }) => {
     }
   } else {
     console.log("no signature found");
+    browser.storage.local.remove(storageKey);
+    browser.pageAction.setIcon({
+      tabId,
+      path: "icons/page-action-unknown.svg",
+    });
   }
 };
+
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
+  let requested = false;
   console.log("navigation detected");
 
   const listener = (requestDetails) => {
     console.log("request detected");
+    requested = true;
 
     const data = [];
     const filter = browser.webRequest.filterResponseData(
@@ -96,7 +102,8 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       console.log("filter stop");
       filter.disconnect();
       processDocument({
-        tabId: requestDetails.tabId,
+        tabId: navigateDetails.tabId,
+        url: navigateDetails.url,
         data,
       });
     };
@@ -115,7 +122,19 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     ["blocking"]
   );
 
-  browser.webNavigation.onCommitted.addListener(() => {
+  browser.webNavigation.onCommitted.addListener(async () => {
     browser.webRequest.onBeforeRequest.removeListener(listener);
+    if (!requested) {
+      const storageKey = `result/${navigateDetails.url}`;
+      const {
+        [storageKey]: result = "unknown",
+      } = await browser.storage.local.get(storageKey);
+
+      console.log("using cached result", { result });
+      browser.pageAction.setIcon({
+        tabId: navigateDetails.tabId,
+        path: `icons/page-action-${result}.svg`,
+      });
+    }
   });
 });
