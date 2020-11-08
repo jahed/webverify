@@ -1,6 +1,6 @@
 # Web Verify
 
-Verify web pages authorship using OpenPGP. This is an experimental project.
+Verify web page authorship using OpenPGP. This is an experimental project.
 
 ## Installation
 
