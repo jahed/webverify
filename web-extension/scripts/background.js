@@ -84,7 +84,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   let requested = false;
   console.log("navigation detected");
 
-  const listener = (requestDetails) => {
+  const beforeRequestListener = (requestDetails) => {
     console.log("request detected");
     requested = true;
 
@@ -113,17 +113,11 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     };
   };
 
-  browser.webRequest.onBeforeRequest.addListener(
-    listener,
-    {
-      urls: [navigateDetails.url],
-      types: ["main_frame"],
-    },
-    ["blocking"]
-  );
+  const committedListener = async () => {
+    console.log("navigation committed");
+    browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
+    browser.webNavigation.onCommitted.removeListener(committedListener);
 
-  browser.webNavigation.onCommitted.addListener(async () => {
-    browser.webRequest.onBeforeRequest.removeListener(listener);
     if (!requested) {
       const storageKey = `result/${navigateDetails.url}`;
       const {
@@ -136,5 +130,25 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
         path: `icons/page-action-${result}.svg`,
       });
     }
-  });
+  };
+
+  const requestFilter = {
+    urls: [navigateDetails.url],
+    types: ["main_frame"],
+  };
+  const extraInfoSpec = ["blocking"];
+  browser.webRequest.onBeforeRequest.addListener(
+    beforeRequestListener,
+    requestFilter,
+    extraInfoSpec
+  );
+
+  const urlFilter = {
+    url: [
+      {
+        urlEquals: navigateDetails.url,
+      },
+    ],
+  };
+  browser.webNavigation.onCommitted.addListener(committedListener, urlFilter);
 });
