@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Web Verify",
   "version": "0.1.0",
-  "description": "Verify web page authorship using OpenPGP.",
+  "description": "Verify webs page authorship using OpenPGP.",
   "icons": {
     "48": "icons/icon.svg",
     "96": "icons/icon.svg"
