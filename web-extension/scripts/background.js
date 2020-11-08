@@ -78,9 +78,9 @@ const processDocument = async ({ tabId, data }) => {
 };
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   console.log("navigation detected");
+
   const listener = (requestDetails) => {
     console.log("request detected");
-    browser.webRequest.onBeforeRequest.removeListener(listener);
 
     const data = [];
     const filter = browser.webRequest.filterResponseData(
@@ -105,6 +105,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       console.error("filter error", filter.error);
     };
   };
+
   browser.webRequest.onBeforeRequest.addListener(
     listener,
     {
@@ -113,4 +114,8 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     },
     ["blocking"]
   );
+
+  browser.webNavigation.onCommitted.addListener(() => {
+    browser.webRequest.onBeforeRequest.removeListener(listener);
+  });
 });
