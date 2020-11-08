@@ -45,7 +45,7 @@ https://your.domain/path/to/index.html.sig
 4. Add your signature path to your page:
 
 ```html
-<link rel="signature" href="https://your.domain/path/to/detached.sig" />
+<link rel="signature" href="https://your.domain/path/to/index.html.sig" />
 ```
 
 5. Sign the web page using `gpg` on any other OpenPGP tool to generate a
