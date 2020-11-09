@@ -6,7 +6,9 @@
   "author": "Jahed Ahmed",
   "license": "MIT",
   "scripts": {
-    "web-ext": "web-ext -c web-ext.config.js"
+    "web-ext": "web-ext -c web-ext.config.js",
+    "start": "yarn web-ext run",
+    "build": "bash ./build.sh"
   },
   "devDependencies": {
     "prettier": "2.1.2",
