@@ -44,11 +44,32 @@ const verifySignature = async (signatureUrl, content) => {
   }
 };
 
-const setPageActionState = (tabId, state = "unknown") => {
-  browser.pageAction.setIcon({
-    tabId,
-    path: `icons/page-action-${state}.svg`,
-  });
+const STATE_SUCCESS_ID = "SUCCESS";
+const STATE_FAILURE_ID = "FAILURE";
+const STATE_UNKNOWN_ID = "UNKNOWN";
+
+const State = {
+  [STATE_SUCCESS_ID]: {
+    id: STATE_SUCCESS_ID,
+    title: "Verified",
+    icon: "icons/page-action-success.svg",
+  },
+  [STATE_FAILURE_ID]: {
+    id: STATE_FAILURE_ID,
+    title: "Verification Failed",
+    icon: "icons/page-action-failure.svg",
+  },
+  [STATE_UNKNOWN_ID]: {
+    id: STATE_UNKNOWN_ID,
+    title: "Unverified",
+    icon: "icons/page-action-unknown.svg",
+  },
+};
+
+const setPageActionState = (tabId, stateId = "unknown") => {
+  const { title, icon } = State[stateId];
+  browser.pageAction.setTitle({ tabId, title });
+  browser.pageAction.setIcon({ tabId, path: icon });
 };
 
 const processDocument = async ({ tabId, url, data }) => {
@@ -65,17 +86,17 @@ const processDocument = async ({ tabId, url, data }) => {
       const sigUrl = new URL(sigHref, url).href;
       await verifySignature(sigUrl, htmlText);
       console.log("verification success");
-      browser.storage.local.set({ [storageKey]: "verified" });
-      setPageActionState(tabId, "verified");
+      browser.storage.local.set({ [storageKey]: STATE_SUCCESS_ID });
+      setPageActionState(tabId, STATE_SUCCESS_ID);
     } catch (error) {
       console.error("verification failed", error);
-      browser.storage.local.set({ [storageKey]: "unverified" });
-      setPageActionState(tabId, "unverified");
+      browser.storage.local.set({ [storageKey]: STATE_FAILURE_ID });
+      setPageActionState(tabId, STATE_FAILURE_ID);
     }
   } else {
     console.log("no signature found");
     browser.storage.local.remove(storageKey);
-    setPageActionState(tabId, "unknown");
+    setPageActionState(tabId, STATE_UNKNOWN_ID);
   }
 };
 
@@ -120,7 +141,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     if (!requested) {
       const storageKey = `result/${navigateDetails.url}`;
       const {
-        [storageKey]: result = "unknown",
+        [storageKey]: result = STATE_UNKNOWN_ID,
       } = await browser.storage.local.get(storageKey);
 
       console.log("using cached result", { result });
