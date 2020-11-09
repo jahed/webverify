@@ -44,6 +44,13 @@ const verifySignature = async (signatureUrl, content) => {
   }
 };
 
+const setPageActionState = (tabId, state = "unknown") => {
+  browser.pageAction.setIcon({
+    tabId,
+    path: `icons/page-action-${state}.svg`,
+  });
+};
+
 const processDocument = async ({ tabId, url, data }) => {
   const storageKey = `result/${url}`;
   const blob = new Blob(data, { type: "text/html" });
@@ -59,25 +66,16 @@ const processDocument = async ({ tabId, url, data }) => {
       await verifySignature(sigUrl, htmlText);
       console.log("verification success");
       browser.storage.local.set({ [storageKey]: "verified" });
-      browser.pageAction.setIcon({
-        tabId,
-        path: "icons/page-action-verified.svg",
-      });
+      setPageActionState(tabId, "verified");
     } catch (error) {
       console.error("verification failed", error);
       browser.storage.local.set({ [storageKey]: "unverified" });
-      browser.pageAction.setIcon({
-        tabId,
-        path: "icons/page-action-unverified.svg",
-      });
+      setPageActionState(tabId, "unverified");
     }
   } else {
     console.log("no signature found");
     browser.storage.local.remove(storageKey);
-    browser.pageAction.setIcon({
-      tabId,
-      path: "icons/page-action-unknown.svg",
-    });
+    setPageActionState(tabId, "unknown");
   }
 };
 
@@ -126,10 +124,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       } = await browser.storage.local.get(storageKey);
 
       console.log("using cached result", { result });
-      browser.pageAction.setIcon({
-        tabId: navigateDetails.tabId,
-        path: `icons/page-action-${result}.svg`,
-      });
+      setPageActionState(navigateDetails.tabId, result);
     }
   };
 
