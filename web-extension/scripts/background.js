@@ -51,10 +51,11 @@ const processDocument = async ({ tabId, url, data }) => {
 
   const doc = new DOMParser().parseFromString(htmlText, "text/html");
   const sigLink = doc.querySelector('head link[rel="signature"]');
-  if (sigLink) {
+  const sigHref = sigLink ? sigLink.getAttribute("href") : undefined;
+  if (sigHref) {
     console.log("signature detected");
     try {
-      const sigUrl = sigLink.getAttribute("href");
+      const sigUrl = new URL(sigHref, url).href;
       await verifySignature(sigUrl, htmlText);
       console.log("verification success");
       browser.storage.local.set({ [storageKey]: "verified" });
