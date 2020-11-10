@@ -27,11 +27,15 @@ p:last-of-type {
 .MoreInfo {
   position: relative;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.Section {
   padding: 16px 40px 16px 56px;
 }
 
-.Section:first-child {
-  border: none;
+.MoreInfo,
+.Heading {
+  padding: 16px 40px;
 }
 
 .SectionIcon {
