@@ -19,7 +19,7 @@ p {
 .MoreInfo {
   position: relative;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 16px 56px;
+  padding: 16px 40px 16px 56px;
 }
 
 .Section:first-child {
