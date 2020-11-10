@@ -104,7 +104,7 @@ const setPopupStateForTabId = (tabId, state) => {
 };
 
 browser.tabs.onRemoved.addListener((tabId) => {
-  popupStateByTabId.remove(tabId);
+  popupStateByTabId.delete(tabId);
 });
 
 const updatePageAction = ({
