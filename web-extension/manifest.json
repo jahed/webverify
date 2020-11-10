@@ -19,7 +19,7 @@
   },
   "page_action": {
     "default_icon": "icons/page-action-verified.svg",
-    "default_title": "Unverified",
+    "default_title": "Web Verify",
     "show_matches": ["<all_urls>"]
   },
   "browser_specific_settings": {
