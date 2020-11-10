@@ -18,8 +18,8 @@
     "scripts": ["vendor/openpgp.js", "scripts/background.js"]
   },
   "page_action": {
-    "default_icon": "icons/page-action-unknown.svg",
-    "default_title": "Web Verify",
+    "default_icon": "icons/page-action-unverified.svg",
+    "default_title": "Unverified",
     "default_popup": "popup/index.html",
     "browser_style": true,
     "show_matches": ["<all_urls>"]

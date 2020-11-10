@@ -52,17 +52,17 @@ const State = {
   [STATE_SUCCESS_ID]: {
     id: STATE_SUCCESS_ID,
     title: "Verified",
-    icon: "icons/page-action-success.svg",
+    icon: "icons/page-action-verified.svg",
   },
   [STATE_FAILURE_ID]: {
     id: STATE_FAILURE_ID,
     title: "Verification Failed",
-    icon: "icons/page-action-failure.svg",
+    icon: "icons/page-action-blocked.svg",
   },
   [STATE_UNKNOWN_ID]: {
     id: STATE_UNKNOWN_ID,
     title: "Unverified",
-    icon: "icons/page-action-unknown.svg",
+    icon: "icons/page-action-unverified.svg",
   },
 };
 
