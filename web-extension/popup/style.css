@@ -1,0 +1,59 @@
+body {
+  background: #4a4a4f;
+  color: #f9f9fa;
+  font: caption;
+  max-width: 450px;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+}
+
+p {
+  margin: 0;
+}
+
+.Section,
+.MoreInfo {
+  position: relative;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 56px;
+}
+
+.Section:first-child {
+  border: none;
+}
+
+.SectionIcon {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.Heading {
+  font-size: inherit;
+  text-align: center;
+  margin: 0;
+}
+
+.Status {
+  color: #d74345;
+}
+
+.MoreInfo {
+  display: block;
+  text-decoration: none;
+  text-align: center;
+  background-color: #5b5b60;
+}
+
+.MoreInfo:hover {
+  background-color: #67676c;
+}
