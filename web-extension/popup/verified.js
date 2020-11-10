@@ -78,6 +78,7 @@ const update = async (nextState) => {
 
   const emailEl = document.getElementById("AUTHOR_EMAIL");
   emailEl.textContent = state.email ? `<${state.email}>` : "";
+  emailEl.href = state.email ? `mailto:${state.email}` : "";
 
   const commentEl = document.getElementById("AUTHOR_COMMENT");
   commentEl.textContent = state.comment || "";
