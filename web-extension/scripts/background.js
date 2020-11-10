@@ -111,7 +111,6 @@ const setPageActionState = ({ tabId, stateId = "unknown", publicKey }) => {
   browser.pageAction.setPopup({ tabId, popup });
 
   if (publicKey) {
-    console.log({ publicKey });
     const keyId = parseKeyId(publicKey.keyPacket.keyid);
     const fingerprint = parseFingerprint(publicKey.keyPacket.fingerprint);
     const { name, email, comment } = publicKey.users[0].userId;
@@ -122,6 +121,8 @@ const setPageActionState = ({ tabId, stateId = "unknown", publicKey }) => {
       fingerprint,
       keyId,
     });
+  } else {
+    setStateForTabId(tabId, {});
   }
 };
 
