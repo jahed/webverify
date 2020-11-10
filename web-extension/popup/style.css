@@ -12,7 +12,7 @@ a {
 }
 
 p {
-  margin: 0.5em;
+  margin: 0.5em 0;
 }
 
 p:first-of-type {
@@ -43,7 +43,7 @@ p:last-of-type {
   top: 0;
   bottom: 0;
   left: 16px;
-  width: 40px;
+  width: 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
