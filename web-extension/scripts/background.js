@@ -1,19 +1,16 @@
 const getPublicKeys = async (keyId) => {
-  console.log("key id", { keyId });
   const storageKey = `keyId/${keyId}`;
   let { [storageKey]: publicKeyArmored } = await browser.storage.local.get(
     storageKey
   );
 
   if (!publicKeyArmored) {
-    console.log("looking up key using hkp");
+    console.warn("looking up key using hkp");
     const hkp = new openpgp.HKP("https://keys.openpgp.org");
     publicKeyArmored = await hkp.lookup({ keyId });
 
     await browser.storage.local.set({ [storageKey]: publicKeyArmored });
   }
-
-  console.log("public key", { publicKeyArmored });
 
   const { keys } = await openpgp.key.readArmored(publicKeyArmored);
   return keys;
@@ -30,7 +27,6 @@ const parseKeyId = (keyId) => {
 const getSignature = async (signatureUrl) => {
   const res = await fetch(signatureUrl);
   const armoredSignature = await res.text();
-  console.log("signature", { armoredSignature });
   return await openpgp.signature.readArmored(armoredSignature);
 };
 
@@ -150,11 +146,9 @@ const processDocument = async ({ tabId, url, data }) => {
   const sigLink = doc.querySelector('head link[rel="signature"]');
   const sigHref = sigLink ? sigLink.getAttribute("href") : undefined;
   if (sigHref) {
-    console.log("signature detected");
     try {
       const sigUrl = new URL(sigHref, url).href;
       const publicKey = await verifySignature(sigUrl, htmlText);
-      console.log("verification success");
       updatePageAction({ tabId, stateId: STATE_VERIFIED_ID, publicKey });
       browser.storage.local.set({ [storageKey]: STATE_VERIFIED_ID });
     } catch (error) {
@@ -167,7 +161,6 @@ const processDocument = async ({ tabId, url, data }) => {
       browser.storage.local.set({ [storageKey]: STATE_FAILURE_ID });
     }
   } else {
-    console.log("no signature found");
     updatePageAction({ tabId, stateId: STATE_UNVERIFIED_ID });
     browser.storage.local.set({ [storageKey]: STATE_UNVERIFIED_ID });
   }
@@ -175,10 +168,8 @@ const processDocument = async ({ tabId, url, data }) => {
 
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   let requested = false;
-  console.log("navigation detected", { navigateDetails });
 
   const beforeRequestListener = (requestDetails) => {
-    console.log("request detected", { requestDetails });
     requested = true;
 
     const data = [];
@@ -192,7 +183,6 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     };
 
     filter.onstop = () => {
-      console.log("filter stop");
       filter.disconnect();
       processDocument({
         tabId: navigateDetails.tabId,
@@ -206,8 +196,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     };
   };
 
-  const committedListener = async (committedDetails) => {
-    console.log("navigation committed", { committedDetails });
+  const committedListener = async () => {
     browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
     browser.webNavigation.onCommitted.removeListener(committedListener);
 
@@ -216,7 +205,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       const {
         [storageKey]: result = STATE_CACHE_MISS_ID,
       } = await browser.storage.local.get(storageKey);
-      console.log("using cached result", { result });
+      console.warn("using cached result", { result });
       updatePageAction({ tabId: navigateDetails.tabId, stateId: result });
     }
   };

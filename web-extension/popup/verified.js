@@ -10,7 +10,6 @@ const updateFingerprint = () => {
 };
 
 const update = (nextState) => {
-  console.log("verified popup update", { state, nextState });
   state = nextState;
   const nameEl = document.getElementById("AUTHOR_NAME");
   nameEl.textContent = state.name || "Anonymous";
