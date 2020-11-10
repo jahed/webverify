@@ -15,7 +15,11 @@
     "storage"
   ],
   "background": {
-    "scripts": ["vendor/openpgp.js", "scripts/background.js"]
+    "scripts": [
+      "vendor/browser-polyfill.js",
+      "vendor/openpgp.js",
+      "scripts/background.js"
+    ]
   },
   "page_action": {
     "default_icon": "icons/page-action-verified.svg",

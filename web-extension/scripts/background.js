@@ -49,6 +49,7 @@ const STATE_VERIFIED_ID = "VERIFIED";
 const STATE_FAILURE_ID = "FAILURE";
 const STATE_UNVERIFIED_ID = "UNVERIFIED";
 const STATE_CACHE_MISS_ID = "CACHE_MISS";
+const STATE_UNSUPPORTED_BROWSER_ID = "UNSUPPORTED_BROWSER";
 
 const State = {
   [STATE_APPROVED_ID]: {
@@ -86,6 +87,12 @@ const State = {
     title: "Page cannot be verified",
     icon: "icons/page-action-unverified.svg",
     popup: "popup/cache-miss.html",
+  },
+  [STATE_UNSUPPORTED_BROWSER_ID]: {
+    id: STATE_UNSUPPORTED_BROWSER_ID,
+    title: "Browser cannot verify this page.",
+    icon: "icons/page-action-unverified.svg",
+    popup: "popup/unsupported-browser.html",
   },
 };
 
@@ -167,15 +174,25 @@ const processDocument = async ({ tabId, url, data }) => {
 };
 
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
+  const { tabId, url } = navigateDetails;
+  const storageKey = `result/${url}`;
   let requested = false;
 
   const beforeRequestListener = (requestDetails) => {
+    const { requestId } = requestDetails;
     requested = true;
 
+    if (!("filterResponseData" in browser.webRequest)) {
+      updatePageAction({
+        tabId,
+        stateId: STATE_UNSUPPORTED_BROWSER_ID,
+      });
+      browser.storage.local.set({ [storageKey]: STATE_UNSUPPORTED_BROWSER_ID });
+      return;
+    }
+
     const data = [];
-    const filter = browser.webRequest.filterResponseData(
-      requestDetails.requestId
-    );
+    const filter = browser.webRequest.filterResponseData(requestId);
 
     filter.ondata = (event) => {
       data.push(event.data);
@@ -184,11 +201,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
 
     filter.onstop = () => {
       filter.disconnect();
-      processDocument({
-        tabId: navigateDetails.tabId,
-        url: navigateDetails.url,
-        data,
-      });
+      processDocument({ tabId, url, data });
     };
 
     filter.onerror = () => {
@@ -201,17 +214,16 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     browser.webNavigation.onCommitted.removeListener(committedListener);
 
     if (!requested) {
-      const storageKey = `result/${navigateDetails.url}`;
       const {
-        [storageKey]: result = STATE_CACHE_MISS_ID,
+        [storageKey]: stateId = STATE_CACHE_MISS_ID,
       } = await browser.storage.local.get(storageKey);
-      console.warn("using cached result", { result });
-      updatePageAction({ tabId: navigateDetails.tabId, stateId: result });
+      console.warn("using cached result", { stateId });
+      updatePageAction({ tabId, stateId });
     }
   };
 
   const requestFilter = {
-    urls: [navigateDetails.url],
+    urls: [url],
     types: ["main_frame"],
   };
   const extraInfoSpec = ["blocking"];
@@ -224,7 +236,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   const urlFilter = {
     url: [
       {
-        urlEquals: navigateDetails.url,
+        urlEquals: url,
       },
     ],
   };

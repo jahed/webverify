@@ -19,7 +19,7 @@ yarn install
 Create a `web-ext` Firefox Profile by going to `about:profiles`. Then run:
 
 ```
-yarn web-ext run
+yarn start
 ```
 
 This will launch Firefox using the `web-ext` profile with the extension
