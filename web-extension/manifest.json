@@ -20,7 +20,7 @@
   "page_action": {
     "default_icon": "icons/page-action-unverified.svg",
     "default_title": "Unverified",
-    "default_popup": "popup/index.html",
+    "default_popup": "popup/unverified.html",
     "browser_style": true,
     "show_matches": ["<all_urls>"]
   },

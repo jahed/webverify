@@ -44,32 +44,50 @@ const verifySignature = async (signatureUrl, content) => {
   }
 };
 
-const STATE_SUCCESS_ID = "SUCCESS";
+const STATE_APPROVED_ID = "APPROVED";
+const STATE_BLOCKED_ID = "BLOCKED";
+const STATE_VERIFIED_ID = "VERIFIED";
 const STATE_FAILURE_ID = "FAILURE";
-const STATE_UNKNOWN_ID = "UNKNOWN";
+const STATE_UNVERIFIED_ID = "UNVERIFIED";
 
 const State = {
-  [STATE_SUCCESS_ID]: {
-    id: STATE_SUCCESS_ID,
-    title: "Verified",
+  [STATE_APPROVED_ID]: {
+    id: STATE_APPROVED_ID,
+    title: "Author approved",
+    icon: "icons/page-action-approved.svg",
+    popup: "popup/approved.html",
+  },
+  [STATE_BLOCKED_ID]: {
+    id: STATE_BLOCKED_ID,
+    title: "Author blocked",
+    icon: "icons/page-action-blocked.svg",
+    popup: "popup/blocked.html",
+  },
+  [STATE_VERIFIED_ID]: {
+    id: STATE_VERIFIED_ID,
+    title: "Page is verified",
     icon: "icons/page-action-verified.svg",
+    popup: "popup/verified.html",
   },
   [STATE_FAILURE_ID]: {
     id: STATE_FAILURE_ID,
-    title: "Verification Failed",
-    icon: "icons/page-action-blocked.svg",
+    title: "Page verification failed.",
+    icon: "icons/page-action-failure.svg",
+    popup: "popup/failure.html",
   },
-  [STATE_UNKNOWN_ID]: {
-    id: STATE_UNKNOWN_ID,
-    title: "Unverified",
+  [STATE_UNVERIFIED_ID]: {
+    id: STATE_UNVERIFIED_ID,
+    title: "Page is not verified",
     icon: "icons/page-action-unverified.svg",
+    popup: "popup/unverified.html",
   },
 };
 
 const setPageActionState = (tabId, stateId = "unknown") => {
-  const { title, icon } = State[stateId];
+  const { title, icon, popup } = State[stateId];
   browser.pageAction.setTitle({ tabId, title });
   browser.pageAction.setIcon({ tabId, path: icon });
+  browser.pageAction.setPopup({ tabId, popup });
 };
 
 const processDocument = async ({ tabId, url, data }) => {
@@ -86,8 +104,8 @@ const processDocument = async ({ tabId, url, data }) => {
       const sigUrl = new URL(sigHref, url).href;
       await verifySignature(sigUrl, htmlText);
       console.log("verification success");
-      browser.storage.local.set({ [storageKey]: STATE_SUCCESS_ID });
-      setPageActionState(tabId, STATE_SUCCESS_ID);
+      browser.storage.local.set({ [storageKey]: STATE_VERIFIED_ID });
+      setPageActionState(tabId, STATE_VERIFIED_ID);
     } catch (error) {
       console.error("verification failed", error);
       browser.storage.local.set({ [storageKey]: STATE_FAILURE_ID });
@@ -96,7 +114,7 @@ const processDocument = async ({ tabId, url, data }) => {
   } else {
     console.log("no signature found");
     browser.storage.local.remove(storageKey);
-    setPageActionState(tabId, STATE_UNKNOWN_ID);
+    setPageActionState(tabId, STATE_UNVERIFIED_ID);
   }
 };
 
@@ -141,7 +159,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     if (!requested) {
       const storageKey = `result/${navigateDetails.url}`;
       const {
-        [storageKey]: result = STATE_UNKNOWN_ID,
+        [storageKey]: result = STATE_UNVERIFIED_ID,
       } = await browser.storage.local.get(storageKey);
 
       console.log("using cached result", { result });
