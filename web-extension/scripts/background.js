@@ -19,10 +19,12 @@ const getPublicKeys = async (keyId) => {
   return keys;
 };
 
-const getKeyId = async (signature) => {
-  return openpgp.util
-    .str_to_hex(signature.packets[0].issuerKeyId.bytes)
-    .toUpperCase();
+const parseFingerprint = (fingerprint) => {
+  return openpgp.util.Uint8Array_to_hex(fingerprint).toUpperCase();
+};
+
+const parseKeyId = (keyId) => {
+  return keyId.toHex().toUpperCase();
 };
 
 const getSignature = async (signatureUrl) => {
@@ -35,7 +37,7 @@ const getSignature = async (signatureUrl) => {
 const verifySignature = async (signatureUrl, content) => {
   const message = openpgp.message.fromText(content);
   const signature = await getSignature(signatureUrl);
-  const keyId = await getKeyId(signature);
+  const keyId = parseKeyId(signature.packets[0].issuerKeyId);
   const publicKeys = await getPublicKeys(keyId);
   const verified = await openpgp.verify({ message, signature, publicKeys });
   const { error } = verified.signatures[0];
@@ -108,12 +110,19 @@ const setPageActionState = ({ tabId, stateId = "unknown", publicKey }) => {
   browser.pageAction.setIcon({ tabId, path: icon });
   browser.pageAction.setPopup({ tabId, popup });
 
-  const { name, email, comment } = publicKey.users[0].userId;
-  setStateForTabId(tabId, {
-    authorName: name,
-    authorEmail: email,
-    authorComment: comment,
-  });
+  if (publicKey) {
+    console.log({ publicKey });
+    const keyId = parseKeyId(publicKey.keyPacket.keyid);
+    const fingerprint = parseFingerprint(publicKey.keyPacket.fingerprint);
+    const { name, email, comment } = publicKey.users[0].userId;
+    setStateForTabId(tabId, {
+      name,
+      email,
+      comment,
+      fingerprint,
+      keyId,
+    });
+  }
 };
 
 const processDocument = async ({ tabId, url, data }) => {
