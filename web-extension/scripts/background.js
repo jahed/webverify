@@ -52,6 +52,7 @@ const STATE_BLOCKED_ID = "BLOCKED";
 const STATE_VERIFIED_ID = "VERIFIED";
 const STATE_FAILURE_ID = "FAILURE";
 const STATE_UNVERIFIED_ID = "UNVERIFIED";
+const STATE_CACHE_MISS_ID = "CACHE_MISS";
 
 const State = {
   [STATE_APPROVED_ID]: {
@@ -84,46 +85,60 @@ const State = {
     icon: "icons/page-action-unverified.svg",
     popup: "popup/unverified.html",
   },
+  [STATE_CACHE_MISS_ID]: {
+    id: STATE_CACHE_MISS_ID,
+    title: "Page cannot be verified",
+    icon: "icons/page-action-unverified.svg",
+    popup: "popup/cache-miss.html",
+  },
 };
 
-const stateByTabId = new Map();
+const popupStateByTabId = new Map();
 
-const getStateForTabId = (tabId) => {
-  let state = stateByTabId.get(tabId);
+const getPopupStateForTabId = (tabId) => {
+  let state = popupStateByTabId.get(tabId);
   if (!state) {
     state = {};
-    stateByTabId.set(tabId, state);
+    popupStateByTabId.set(tabId, state);
   }
   return state;
 };
-const setStateForTabId = (tabId, state) => {
-  stateByTabId.set(tabId, state);
+const setPopupStateForTabId = (tabId, state) => {
+  popupStateByTabId.set(tabId, state);
 };
 
 browser.tabs.onRemoved.addListener((tabId) => {
-  stateByTabId.remove(tabId);
+  popupStateByTabId.remove(tabId);
 });
 
-const setPageActionState = ({ tabId, stateId = "unknown", publicKey }) => {
+const updatePageAction = ({
+  tabId,
+  stateId = "unknown",
+  publicKey,
+  errorMessage,
+}) => {
   const { title, icon, popup } = State[stateId];
   browser.pageAction.setTitle({ tabId, title });
   browser.pageAction.setIcon({ tabId, path: icon });
   browser.pageAction.setPopup({ tabId, popup });
 
+  let popupState = {};
   if (publicKey) {
     const keyId = parseKeyId(publicKey.keyPacket.keyid);
     const fingerprint = parseFingerprint(publicKey.keyPacket.fingerprint);
     const { name, email, comment } = publicKey.users[0].userId;
-    setStateForTabId(tabId, {
+    popupState = {
       name,
       email,
       comment,
       fingerprint,
       keyId,
-    });
-  } else {
-    setStateForTabId(tabId, {});
+    };
+  } else if (errorMessage) {
+    popupState = { errorMessage };
   }
+
+  setPopupStateForTabId(tabId, popupState);
 };
 
 const processDocument = async ({ tabId, url, data }) => {
@@ -140,17 +155,21 @@ const processDocument = async ({ tabId, url, data }) => {
       const sigUrl = new URL(sigHref, url).href;
       const publicKey = await verifySignature(sigUrl, htmlText);
       console.log("verification success");
+      updatePageAction({ tabId, stateId: STATE_VERIFIED_ID, publicKey });
       browser.storage.local.set({ [storageKey]: STATE_VERIFIED_ID });
-      setPageActionState({ tabId, stateId: STATE_VERIFIED_ID, publicKey });
     } catch (error) {
       console.error("verification failed", error);
+      updatePageAction({
+        tabId,
+        stateId: STATE_FAILURE_ID,
+        errorMessage: error.message,
+      });
       browser.storage.local.set({ [storageKey]: STATE_FAILURE_ID });
-      setPageActionState({ tabId, stateId: STATE_FAILURE_ID });
     }
   } else {
     console.log("no signature found");
-    browser.storage.local.remove(storageKey);
-    setPageActionState({ tabId, stateId: STATE_UNVERIFIED_ID });
+    updatePageAction({ tabId, stateId: STATE_UNVERIFIED_ID });
+    browser.storage.local.set({ [storageKey]: STATE_UNVERIFIED_ID });
   }
 };
 
@@ -195,11 +214,10 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     if (!requested) {
       const storageKey = `result/${navigateDetails.url}`;
       const {
-        [storageKey]: result = STATE_UNVERIFIED_ID,
+        [storageKey]: result = STATE_CACHE_MISS_ID,
       } = await browser.storage.local.get(storageKey);
-
       console.log("using cached result", { result });
-      setPageActionState({ tabId: navigateDetails.tabId, stateId: result });
+      updatePageAction({ tabId: navigateDetails.tabId, stateId: result });
     }
   };
 
@@ -230,7 +248,7 @@ const connectListener = (port) => {
       case "SUBSCRIBE": {
         port.postMessage({
           type: "UPDATE",
-          payload: getStateForTabId(message.payload.tabId),
+          payload: getPopupStateForTabId(message.payload.tabId),
         });
         return;
       }

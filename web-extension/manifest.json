@@ -18,9 +18,9 @@
     "scripts": ["vendor/openpgp.js", "scripts/background.js"]
   },
   "page_action": {
-    "default_icon": "icons/page-action-unverified.svg",
+    "default_icon": "icons/page-action-verified.svg",
     "default_title": "Unverified",
-    "default_popup": "popup/unverified.html",
+    "default_popup": "popup/verified.html",
     "show_matches": ["<all_urls>"]
   },
   "browser_specific_settings": {
