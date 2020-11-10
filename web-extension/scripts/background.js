@@ -42,6 +42,7 @@ const verifySignature = async (signatureUrl, content) => {
   if (error) {
     throw error;
   }
+  return publicKeys[0];
 };
 
 const STATE_APPROVED_ID = "APPROVED";
@@ -83,11 +84,36 @@ const State = {
   },
 };
 
-const setPageActionState = (tabId, stateId = "unknown") => {
+const stateByTabId = new Map();
+
+const getStateForTabId = (tabId) => {
+  let state = stateByTabId.get(tabId);
+  if (!state) {
+    state = {};
+    stateByTabId.set(tabId, state);
+  }
+  return state;
+};
+const setStateForTabId = (tabId, state) => {
+  stateByTabId.set(tabId, state);
+};
+
+browser.tabs.onRemoved.addListener((tabId) => {
+  stateByTabId.remove(tabId);
+});
+
+const setPageActionState = ({ tabId, stateId = "unknown", publicKey }) => {
   const { title, icon, popup } = State[stateId];
   browser.pageAction.setTitle({ tabId, title });
   browser.pageAction.setIcon({ tabId, path: icon });
   browser.pageAction.setPopup({ tabId, popup });
+
+  const { name, email, comment } = publicKey.users[0].userId;
+  setStateForTabId(tabId, {
+    authorName: name,
+    authorEmail: email,
+    authorComment: comment,
+  });
 };
 
 const processDocument = async ({ tabId, url, data }) => {
@@ -102,28 +128,28 @@ const processDocument = async ({ tabId, url, data }) => {
     console.log("signature detected");
     try {
       const sigUrl = new URL(sigHref, url).href;
-      await verifySignature(sigUrl, htmlText);
+      const publicKey = await verifySignature(sigUrl, htmlText);
       console.log("verification success");
       browser.storage.local.set({ [storageKey]: STATE_VERIFIED_ID });
-      setPageActionState(tabId, STATE_VERIFIED_ID);
+      setPageActionState({ tabId, stateId: STATE_VERIFIED_ID, publicKey });
     } catch (error) {
       console.error("verification failed", error);
       browser.storage.local.set({ [storageKey]: STATE_FAILURE_ID });
-      setPageActionState(tabId, STATE_FAILURE_ID);
+      setPageActionState({ tabId, stateId: STATE_FAILURE_ID });
     }
   } else {
     console.log("no signature found");
     browser.storage.local.remove(storageKey);
-    setPageActionState(tabId, STATE_UNVERIFIED_ID);
+    setPageActionState({ tabId, stateId: STATE_UNVERIFIED_ID });
   }
 };
 
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   let requested = false;
-  console.log("navigation detected");
+  console.log("navigation detected", { navigateDetails });
 
   const beforeRequestListener = (requestDetails) => {
-    console.log("request detected");
+    console.log("request detected", { requestDetails });
     requested = true;
 
     const data = [];
@@ -151,8 +177,8 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     };
   };
 
-  const committedListener = async () => {
-    console.log("navigation committed");
+  const committedListener = async (committedDetails) => {
+    console.log("navigation committed", { committedDetails });
     browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
     browser.webNavigation.onCommitted.removeListener(committedListener);
 
@@ -163,7 +189,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       } = await browser.storage.local.get(storageKey);
 
       console.log("using cached result", { result });
-      setPageActionState(navigateDetails.tabId, result);
+      setPageActionState({ tabId: navigateDetails.tabId, stateId: result });
     }
   };
 
@@ -187,3 +213,23 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   };
   browser.webNavigation.onCommitted.addListener(committedListener, urlFilter);
 });
+
+const connectListener = (port) => {
+  port.onMessage.addListener((message) => {
+    switch (message.type) {
+      case "SUBSCRIBE": {
+        port.postMessage({
+          type: "UPDATE",
+          payload: getStateForTabId(message.payload.tabId),
+        });
+        return;
+      }
+      default: {
+        console.warn("Unknown message", { message });
+        return;
+      }
+    }
+  });
+};
+
+browser.runtime.onConnect.addListener(connectListener);

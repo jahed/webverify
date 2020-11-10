@@ -2,7 +2,7 @@ body {
   background: #4a4a4f;
   color: #f9f9fa;
   font: caption;
-  max-width: 450px;
+  width: 450px;
   margin: 0;
   padding: 0;
 }
@@ -12,7 +12,15 @@ a {
 }
 
 p {
-  margin: 0;
+  margin: 0.5em;
+}
+
+p:first-of-type {
+  margin-top: 0;
+}
+
+p:last-of-type {
+  margin-bottom: 0;
 }
 
 .Section,
@@ -43,8 +51,12 @@ p {
   margin: 0;
 }
 
-.Status {
+.Status--danger {
   color: #d74345;
+}
+
+.Status--success {
+  color: #30e60b;
 }
 
 .MoreInfo {
