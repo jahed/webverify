@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "Web Verify",
+  "name": "WebVerify",
   "version": "0.1.0",
   "description": "Verify web page authorship using OpenPGP.",
   "icons": {
@@ -29,12 +29,12 @@
   ],
   "page_action": {
     "default_icon": "icons/page-action-verified.svg",
-    "default_title": "Web Verify",
+    "default_title": "WebVerify",
     "show_matches": ["<all_urls>"]
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "web-verify@jahed.dev"
+      "id": "webverify@jahed.dev"
     }
   }
 }

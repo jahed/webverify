@@ -1,6 +1,6 @@
 <img src="web-extension/icons/icon.svg" width="128" align='right' alt='' />
 
-# Web Verify
+# WebVerify
 
 Verify web page authorship using OpenPGP. This is an experimental project.
 
@@ -9,8 +9,8 @@ Verify web page authorship using OpenPGP. This is an experimental project.
 The Web Extension is currently in development and only works in Firefox.
 
 ```
-git clone git@github.com:jahed/web-verify.git
-cd web-verify
+git clone git@github.com:jahed/webverify.git
+cd webverify
 yarn install
 ```
 
