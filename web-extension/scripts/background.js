@@ -30,6 +30,19 @@ const getSignature = async (signatureUrl) => {
   return await openpgp.signature.readArmored(armoredSignature);
 };
 
+const getAuthor = (publicKey) => {
+  const keyId = parseKeyId(publicKey.keyPacket.keyid);
+  const fingerprint = parseFingerprint(publicKey.keyPacket.fingerprint);
+  const { name, email, comment } = publicKey.users[0].userId;
+  return {
+    name,
+    email,
+    comment,
+    fingerprint,
+    keyId,
+  };
+};
+
 const verifySignature = async (signatureUrl, content) => {
   const message = openpgp.message.fromText(content);
   const signature = await getSignature(signatureUrl);
@@ -40,7 +53,7 @@ const verifySignature = async (signatureUrl, content) => {
   if (error) {
     throw error;
   }
-  return publicKeys[0];
+  return getAuthor(publicKeys[0]);
 };
 
 const STATE_APPROVED_ID = "APPROVED";
@@ -106,18 +119,49 @@ const getPopupStateForTabId = (tabId) => {
   }
   return state;
 };
+
 const setPopupStateForTabId = (tabId, state) => {
   popupStateByTabId.set(tabId, state);
 };
 
+const matchersByTabId = new Map();
+
+const getMatchersForTabId = (tabId) => {
+  let matchers = matchersByTabId.get(tabId);
+  if (!matchers) {
+    matchers = [];
+    matchersByTabId.set(tabId, matchers);
+  }
+  return matchers;
+};
+
+const setMatchersForTabId = (tabId, matchers = []) => {
+  matchersByTabId.set(tabId, matchers);
+};
+
+browser.runtime.onMessage.addListener((message, sender) => {
+  const tabId = sender.tab.id;
+  switch (message.type) {
+    case "UNLOAD_MATCHERS": {
+      setMatchersForTabId(tabId, message.payload.matchers);
+      return;
+    }
+    default: {
+      console.warn("Unknown message", { message });
+      return;
+    }
+  }
+});
+
 browser.tabs.onRemoved.addListener((tabId) => {
   popupStateByTabId.delete(tabId);
+  matchersByTabId.delete(tabId);
 });
 
 const updatePageAction = ({
   tabId,
   stateId = "unknown",
-  publicKey,
+  author,
   errorMessage,
 }) => {
   const { title, icon, popup } = State[stateId];
@@ -126,16 +170,9 @@ const updatePageAction = ({
   browser.pageAction.setPopup({ tabId, popup });
 
   let popupState = {};
-  if (publicKey) {
-    const keyId = parseKeyId(publicKey.keyPacket.keyid);
-    const fingerprint = parseFingerprint(publicKey.keyPacket.fingerprint);
-    const { name, email, comment } = publicKey.users[0].userId;
+  if (author) {
     popupState = {
-      name,
-      email,
-      comment,
-      fingerprint,
-      keyId,
+      ...author,
     };
   } else if (errorMessage) {
     popupState = { errorMessage };
@@ -149,14 +186,14 @@ const processDocument = async ({ tabId, url, data }) => {
   const blob = new Blob(data, { type: "text/html" });
   const htmlText = await blob.text();
 
-  const doc = new DOMParser().parseFromString(htmlText, "text/html");
-  const sigLink = doc.querySelector('head link[rel="signature"]');
+  const document = new DOMParser().parseFromString(htmlText, "text/html");
+  const sigLink = document.head.querySelector('link[rel="signature"]');
   const sigHref = sigLink ? sigLink.getAttribute("href") : undefined;
   if (sigHref) {
     try {
       const sigUrl = new URL(sigHref, url).href;
-      const publicKey = await verifySignature(sigUrl, htmlText);
-      updatePageAction({ tabId, stateId: STATE_VERIFIED_ID, publicKey });
+      const author = await verifySignature(sigUrl, htmlText);
+      updatePageAction({ tabId, stateId: STATE_VERIFIED_ID, author });
       browser.storage.local.set({ [storageKey]: STATE_VERIFIED_ID });
     } catch (error) {
       console.error("verification failed", error);
@@ -173,10 +210,47 @@ const processDocument = async ({ tabId, url, data }) => {
   }
 };
 
+const getExpectedKeyId = ({ referringTabId, url }) => {
+  for (const matcher of getMatchersForTabId(referringTabId)) {
+    if (url.startsWith(matcher.prefix)) {
+      return matcher.keyId;
+    }
+  }
+  return null;
+};
+
+const referringTabIdMap = new Map();
+
+/**
+ * referringTabId is the tabId from which the new navigation was triggered.
+ * It can be the same tabId. This is used to match and enforce expected authors.
+ */
+const getReferringTabId = (tabId) => {
+  const referringTabId = referringTabIdMap.get(tabId);
+  if (referringTabId) {
+    referringTabIdMap.delete(tabId);
+    return referringTabId;
+  }
+  return tabId;
+};
+
+browser.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+  const { sourceTabId, tabId } = details;
+  referringTabIdMap.set(tabId, sourceTabId);
+});
+
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   const { tabId, url } = navigateDetails;
+  const referringTabId = getReferringTabId(tabId);
   const storageKey = `result/${url}`;
   let requested = false;
+
+  let processDocumentResolve;
+  let processDocumentReject;
+  let processDocumentPromise = new Promise((resolve, reject) => {
+    processDocumentResolve = resolve;
+    processDocumentReject = reject;
+  });
 
   const beforeRequestListener = (requestDetails) => {
     const { requestId } = requestDetails;
@@ -188,6 +262,7 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
         stateId: STATE_UNSUPPORTED_BROWSER_ID,
       });
       browser.storage.local.set({ [storageKey]: STATE_UNSUPPORTED_BROWSER_ID });
+      processDocumentResolve();
       return;
     }
 
@@ -199,17 +274,22 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       filter.write(event.data);
     };
 
-    filter.onstop = () => {
+    filter.onstop = async () => {
       filter.disconnect();
-      processDocument({ tabId, url, data });
+      processDocument({ tabId, url, data }).then(
+        processDocumentResolve,
+        processDocumentReject
+      );
     };
 
     filter.onerror = () => {
-      console.error("filter error", filter.error);
+      processDocumentReject(filter.error);
     };
   };
 
-  const committedListener = async () => {
+  const committedListener = async (committedDetails) => {
+    const { transitionType } = committedDetails;
+
     browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
     browser.webNavigation.onCommitted.removeListener(committedListener);
 
@@ -220,27 +300,38 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       console.warn("using cached result", { stateId });
       updatePageAction({ tabId, stateId });
     }
+
+    if (transitionType === "link") {
+      if (requested) {
+        await processDocumentPromise;
+      }
+      const { keyId } = getPopupStateForTabId(tabId);
+      const expectedKeyId = getExpectedKeyId({ referringTabId, url });
+      if (expectedKeyId && expectedKeyId !== keyId) {
+        console.warn(
+          `The link you followed expected a different author. Expected ${expectedKeyId} but got ${keyId}.`
+        );
+        return;
+      }
+    }
   };
 
-  const requestFilter = {
-    urls: [url],
-    types: ["main_frame"],
-  };
-  const extraInfoSpec = ["blocking"];
   browser.webRequest.onBeforeRequest.addListener(
     beforeRequestListener,
-    requestFilter,
-    extraInfoSpec
+    {
+      urls: [url],
+      types: ["main_frame"],
+    },
+    ["blocking"]
   );
 
-  const urlFilter = {
+  browser.webNavigation.onCommitted.addListener(committedListener, {
     url: [
       {
         urlEquals: url,
       },
     ],
-  };
-  browser.webNavigation.onCommitted.addListener(committedListener, urlFilter);
+  });
 });
 
 const connectListener = (port) => {

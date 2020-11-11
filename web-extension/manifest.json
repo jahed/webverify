@@ -21,6 +21,12 @@
       "scripts/background.js"
     ]
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["vendor/browser-polyfill.js", "scripts/content.js"]
+    }
+  ],
   "page_action": {
     "default_icon": "icons/page-action-verified.svg",
     "default_title": "Web Verify",
