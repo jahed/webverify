@@ -158,9 +158,25 @@ browser.tabs.onRemoved.addListener((tabId) => {
   matchersByTabId.delete(tabId);
 });
 
+const getUrlCacheKey = url => `urls/${url}`
+
+const setUrlCache = async (url, value) => {
+  await browser.storage.local.set({ [getUrlCacheKey(url)]: value });
+}
+
+const getUrlCache = async (url) => {
+  const key = getUrlCacheKey(url)
+  const result = await browser.storage.local.get(key);
+  return result[key] || {
+    stateId: STATE_CACHE_MISS_ID
+  }
+}
+
 const updatePageAction = ({
   tabId,
-  stateId = "unknown",
+  url,
+  cache,
+  stateId,
   author,
   errorMessage,
 }) => {
@@ -169,20 +185,21 @@ const updatePageAction = ({
   browser.pageAction.setIcon({ tabId, path: icon });
   browser.pageAction.setPopup({ tabId, popup });
 
-  let popupState = {};
-  if (author) {
-    popupState = {
-      ...author,
-    };
-  } else if (errorMessage) {
-    popupState = { errorMessage };
-  }
+  setPopupStateForTabId(tabId, {
+    cache,
+    stateId,
+    author,
+    errorMessage,
+  });
 
-  setPopupStateForTabId(tabId, popupState);
+  setUrlCache(url, {
+    stateId,
+    author,
+    errorMessage,
+  })
 };
 
 const processDocument = async ({ tabId, url, data }) => {
-  const storageKey = `result/${url}`;
   const blob = new Blob(data, { type: "text/html" });
   const htmlText = await blob.text();
 
@@ -193,20 +210,18 @@ const processDocument = async ({ tabId, url, data }) => {
     try {
       const sigUrl = new URL(sigHref, url).href;
       const author = await verifySignature(sigUrl, htmlText);
-      updatePageAction({ tabId, stateId: STATE_VERIFIED_ID, author });
-      browser.storage.local.set({ [storageKey]: STATE_VERIFIED_ID });
+      updatePageAction({ tabId, url, stateId: STATE_VERIFIED_ID, author });
     } catch (error) {
       console.error("verification failed", error);
       updatePageAction({
         tabId,
+        url,
         stateId: STATE_FAILURE_ID,
         errorMessage: error.message,
       });
-      browser.storage.local.set({ [storageKey]: STATE_FAILURE_ID });
     }
   } else {
-    updatePageAction({ tabId, stateId: STATE_UNVERIFIED_ID });
-    browser.storage.local.set({ [storageKey]: STATE_UNVERIFIED_ID });
+    updatePageAction({ tabId, url, stateId: STATE_UNVERIFIED_ID });
   }
 };
 
@@ -242,7 +257,6 @@ browser.webNavigation.onCreatedNavigationTarget.addListener((details) => {
 browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
   const { tabId, url } = navigateDetails;
   const referringTabId = getReferringTabId(tabId);
-  const storageKey = `result/${url}`;
   let requested = false;
 
   let processDocumentResolve;
@@ -259,9 +273,9 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     if (!("filterResponseData" in browser.webRequest)) {
       updatePageAction({
         tabId,
+        url,
         stateId: STATE_UNSUPPORTED_BROWSER_ID,
       });
-      browser.storage.local.set({ [storageKey]: STATE_UNSUPPORTED_BROWSER_ID });
       processDocumentResolve();
       return;
     }
@@ -294,18 +308,17 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
     browser.webNavigation.onCommitted.removeListener(committedListener);
 
     if (!requested) {
-      const {
-        [storageKey]: stateId = STATE_CACHE_MISS_ID,
-      } = await browser.storage.local.get(storageKey);
-      console.warn("using cached result", { stateId });
-      updatePageAction({ tabId, stateId });
+      const urlCache = await getUrlCache(url)
+      console.warn("using cached result", { url, urlCache });
+      updatePageAction({ tabId, url, cache: true, ...urlCache });
     }
 
     if (transitionType === "link") {
       if (requested) {
         await processDocumentPromise;
       }
-      const { keyId } = getPopupStateForTabId(tabId);
+      const { author } = getPopupStateForTabId(tabId);
+      const keyId = author && author.keyId
       const expectedKeyId = getExpectedKeyId({ referringTabId, url });
       if (expectedKeyId && expectedKeyId !== keyId) {
         console.warn(

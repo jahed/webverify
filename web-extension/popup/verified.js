@@ -63,30 +63,33 @@ const getImageDataUrl = async (src) => {
 };
 
 const updateFingerprint = () => {
+  const { author: { fingerprint, keyId } = {} } = state
   const fingerprintEl = document.getElementById("AUTHOR_FINGERPRINT");
   if (fingerprintEl.dataset.showFingerprint === "true") {
-    fingerprintEl.textContent = state.fingerprint || "";
+    fingerprintEl.textContent = fingerprint || "";
   } else {
-    fingerprintEl.textContent = state.keyId || "";
+    fingerprintEl.textContent = keyId || "";
   }
 };
 
 const update = async (nextState) => {
   state = nextState;
+  const { author: { name, email, comment } = {} } = state
+
   const nameEl = document.getElementById("AUTHOR_NAME");
-  nameEl.textContent = state.name || "Anonymous";
+  nameEl.textContent = name || "???";
 
   const emailEl = document.getElementById("AUTHOR_EMAIL");
-  emailEl.textContent = state.email ? `<${state.email}>` : "";
-  emailEl.href = state.email ? `mailto:${state.email}` : "";
+  emailEl.textContent = email ? `<${email}>` : "";
+  emailEl.href = email ? `mailto:${email}` : "";
 
   const commentEl = document.getElementById("AUTHOR_COMMENT");
-  commentEl.textContent = state.comment || "";
+  commentEl.textContent = comment || "";
 
   updateFingerprint();
 
-  if (state.email) {
-    const avatarUrl = await getAvatarUrl(state.email);
+  if (email) {
+    const avatarUrl = await getAvatarUrl(email);
     const avatarEl = document.getElementById("AUTHOR_AVATAR");
     avatarEl.src = avatarUrl;
   }
