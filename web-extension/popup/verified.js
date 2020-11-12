@@ -63,7 +63,7 @@ const getImageDataUrl = async (src) => {
 };
 
 const updateFingerprint = () => {
-  const { author: { fingerprint, keyId } = {} } = state
+  const { author: { fingerprint, keyId } = {} } = state;
   const fingerprintEl = document.getElementById("AUTHOR_FINGERPRINT");
   if (fingerprintEl.dataset.showFingerprint === "true") {
     fingerprintEl.textContent = fingerprint || "";
@@ -72,9 +72,55 @@ const updateFingerprint = () => {
   }
 };
 
+const getStatusKey = () => {
+  const { author: { keyId } = {} } = state;
+  return `publicKeyStatus/${keyId}`;
+};
+
+const updateStatusActions = async () => {
+  const { tabId } = state;
+  const statusKey = getStatusKey();
+  const { [statusKey]: status } = await browser.storage.local.get(statusKey);
+  const approveEl = document.getElementById("APPROVE");
+  const rejectEl = document.getElementById("REJECT");
+  const forgetEl = document.getElementById("FORGET");
+  const statusEl = document.getElementById("AUTHOR_STATUS");
+  if (status) {
+    approveEl.style.display = "none";
+    rejectEl.style.display = "none";
+    forgetEl.style.display = "block";
+    if (status === "APPROVED") {
+      statusEl.textContent = "(Approved)";
+      statusEl.classList.add("Status--success");
+      statusEl.classList.remove("Status--danger");
+      browser.pageAction.setIcon({
+        tabId,
+        path: "../icons/page-action-approved.svg",
+      });
+    } else {
+      statusEl.textContent = "(Rejected)";
+      statusEl.classList.add("Status--danger");
+      statusEl.classList.remove("Status--success");
+      browser.pageAction.setIcon({
+        tabId,
+        path: "../icons/page-action-rejected.svg",
+      });
+    }
+  } else {
+    approveEl.style.display = "block";
+    rejectEl.style.display = "block";
+    forgetEl.style.display = "none";
+    statusEl.textContent = "";
+    browser.pageAction.setIcon({
+      tabId,
+      path: "../icons/page-action-verified.svg",
+    });
+  }
+};
+
 const update = async (nextState) => {
   state = nextState;
-  const { author: { name, email, comment } = {} } = state
+  const { author: { name, email, comment } = {} } = state;
 
   const nameEl = document.getElementById("AUTHOR_NAME");
   nameEl.textContent = name || "???";
@@ -87,6 +133,7 @@ const update = async (nextState) => {
   commentEl.textContent = comment || "";
 
   updateFingerprint();
+  updateStatusActions();
 
   if (email) {
     const avatarUrl = await getAvatarUrl(email);
@@ -102,6 +149,24 @@ const prepare = () => {
       event.target.dataset.showFingerprint === "false"
     }`;
     updateFingerprint();
+  });
+
+  const approveEl = document.getElementById("APPROVE");
+  approveEl.addEventListener("click", async () => {
+    await browser.storage.local.set({ [getStatusKey()]: "APPROVED" });
+    updateStatusActions();
+  });
+
+  const rejectEl = document.getElementById("REJECT");
+  rejectEl.addEventListener("click", async () => {
+    await browser.storage.local.set({ [getStatusKey()]: "REJECTED" });
+    updateStatusActions();
+  });
+
+  const forgetEl = document.getElementById("FORGET");
+  forgetEl.addEventListener("click", async () => {
+    await browser.storage.local.remove(getStatusKey());
+    updateStatusActions();
   });
 };
 

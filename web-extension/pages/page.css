@@ -31,7 +31,7 @@ img {
 }
 
 a {
-  color: #45a1ff;
+  color: #0060df;
   text-decoration: none;
 }
 
@@ -73,16 +73,16 @@ a:hover {
 }
 
 .Button--primary {
-  color: white;
-  background-color: #45a1ff;
+  color: #eaeaea;
+  background-color: #0060df;
   padding: 1em 3em;
 }
 
 .Button--primary:hover {
-  background-color: #3173b7;
+  background-color: #003eaa;
 }
 
 .Button--danger:hover {
-  color: white;
+  color: #eaeaea;
   background-color: #bb002a;
 }

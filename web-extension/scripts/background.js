@@ -56,8 +56,6 @@ const verifySignature = async (signatureUrl, content) => {
   return getAuthor(publicKeys[0]);
 };
 
-const STATE_APPROVED_ID = "APPROVED";
-const STATE_BLOCKED_ID = "BLOCKED";
 const STATE_VERIFIED_ID = "VERIFIED";
 const STATE_FAILURE_ID = "FAILURE";
 const STATE_UNVERIFIED_ID = "UNVERIFIED";
@@ -65,18 +63,6 @@ const STATE_CACHE_MISS_ID = "CACHE_MISS";
 const STATE_UNSUPPORTED_BROWSER_ID = "UNSUPPORTED_BROWSER";
 
 const State = {
-  [STATE_APPROVED_ID]: {
-    id: STATE_APPROVED_ID,
-    title: "Author approved",
-    icon: "icons/page-action-approved.svg",
-    popup: "popup/approved.html",
-  },
-  [STATE_BLOCKED_ID]: {
-    id: STATE_BLOCKED_ID,
-    title: "Author blocked",
-    icon: "icons/page-action-blocked.svg",
-    popup: "popup/blocked.html",
-  },
   [STATE_VERIFIED_ID]: {
     id: STATE_VERIFIED_ID,
     title: "Page is verified",
@@ -127,15 +113,13 @@ const setPopupStateForTabId = (tabId, state) => {
 const matchersByTabId = new Map();
 
 const getMatchersForTabId = (tabId) => {
-  let matchers = matchersByTabId.get(tabId);
-  if (!matchers) {
-    matchers = [];
-    matchersByTabId.set(tabId, matchers);
-  }
-  return matchers;
+  const matchers = matchersByTabId.get(tabId);
+  matchersByTabId.delete(tabId);
+  return matchers || [];
 };
 
 const setMatchersForTabId = (tabId, matchers = []) => {
+  console.log("storing matchers", { tabId, matchers });
   matchersByTabId.set(tabId, matchers);
 };
 
@@ -174,21 +158,40 @@ const getUrlCache = async (url) => {
   );
 };
 
+const publicKeyStatusToIcon = {
+  APPROVED: "icons/page-action-approved.svg",
+  REJECTED: "icons/page-action-rejected.svg",
+};
+
+const setPageActionIcon = async ({ tabId, stateId, keyId, icon }) => {
+  if (stateId === STATE_VERIFIED_ID) {
+    const statusKey = `publicKeyStatus/${keyId}`;
+    const { [statusKey]: status } = await browser.storage.local.get(statusKey);
+    const statusIcon = publicKeyStatusToIcon[status];
+    if (statusIcon) {
+      browser.pageAction.setIcon({ tabId, path: statusIcon });
+      return;
+    }
+  }
+  browser.pageAction.setIcon({ tabId, path: icon });
+};
+
 const updatePageAction = ({
   tabId,
   url,
-  cache,
+  cache = false,
   stateId,
   author,
   errorMessage,
 }) => {
   const { title, icon, popup } = State[stateId];
   browser.pageAction.setTitle({ tabId, title });
-  browser.pageAction.setIcon({ tabId, path: icon });
   browser.pageAction.setPopup({ tabId, popup });
+  setPageActionIcon({ tabId, stateId, keyId: author && author.keyId, icon });
 
   setPopupStateForTabId(tabId, {
     cache,
+    tabId,
     stateId,
     author,
     errorMessage,
@@ -270,8 +273,8 @@ const getResponseBody = async ({ requestId }) => {
     const filter = browser.webRequest.filterResponseData(requestId);
 
     filter.ondata = (event) => {
-      data.push(event.data);
       filter.write(event.data);
+      data.push(event.data);
     };
 
     filter.onstop = () => {
@@ -280,27 +283,37 @@ const getResponseBody = async ({ requestId }) => {
     };
 
     filter.onerror = () => {
-      filter.disconnect();
-      reject(filter.error);
+      reject(new Error(filter.error));
     };
   });
 };
 
+const usePageActionFromCache = async ({ tabId, url }) => {
+  console.log("using cache", { tabId, url });
+  const urlCache = await getUrlCache(url);
+  updatePageAction({ tabId, url, cache: true, ...urlCache });
+};
+
 const verifyResponse = async ({ tabId, url }) => {
   return new Promise((resolve, reject) => {
+    console.log("verifyResponse", { tabId, url });
     const beforeRequestListener = (details) => {
       const { tabId: requestTabId, requestId } = details;
       if (requestTabId !== tabId) {
         return;
       }
-      console.log("beforeRequest", { details });
+      console.log("verifyResponse beforeRequest", { details });
       browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
 
       getResponseBody({ requestId })
         .then((data) => verifyResponseBody({ tabId, url, data }))
-        .then(resolve, reject);
+        .then(resolve, (error) => {
+          console.warn(error);
+          return usePageActionFromCache({ tabId, url });
+        })
+        .catch(reject);
 
-      // Do not turn blocking promise.
+      // Do not return blocking promise.
     };
 
     const committedListener = async (details) => {
@@ -309,6 +322,7 @@ const verifyResponse = async ({ tabId, url }) => {
         return;
       }
 
+      console.log("verifyResponse committed", { details });
       browser.webNavigation.onCommitted.removeListener(committedListener);
       if (
         browser.webRequest.onBeforeRequest.hasListener(beforeRequestListener)
@@ -316,11 +330,7 @@ const verifyResponse = async ({ tabId, url }) => {
         browser.webRequest.onBeforeRequest.removeListener(
           beforeRequestListener
         );
-        getUrlCache(url)
-          .then((urlCache) => {
-            return updatePageAction({ tabId, url, cache: true, ...urlCache });
-          })
-          .then(resolve, reject);
+        usePageActionFromCache({ tabId, url }).then(resolve, reject);
       }
     };
 
@@ -349,8 +359,8 @@ const verifyLinkTransition = async ({ tabId, url, verifyResponsePromise }) => {
   const { author } = getPopupStateForTabId(tabId);
   const keyId = author && author.keyId;
   const matcher = getExpectedMatcher({ referringTabId, url });
-  console.log("verifyNavigation", { tabId, url, keyId, matcher });
   if (matcher && matcher.keyId && matcher.keyId !== keyId) {
+    console.warn("link verification failed", { tabId, url, keyId, matcher });
     const searchParams = new URLSearchParams();
     searchParams.set("url", url);
     if (matcher.date) {

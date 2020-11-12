@@ -26,7 +26,7 @@ p:last-of-type {
 .Section,
 .MoreInfo {
   position: relative;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .Section {
@@ -69,19 +69,44 @@ p:last-of-type {
   color: #30e60b;
 }
 
+.ButtonRow {
+  display: flex;
+  justify-content: stretch;
+}
+
+.ButtonRow > .MoreInfo:first-child:not(:only-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .MoreInfo {
+  flex-grow: 1;
   display: block;
   text-decoration: none;
   text-align: center;
-  background-color: #5b5b60;
+  background-color: #646464;
+  border: none;
+  color: #eaeaea;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .MoreInfo:hover {
-  background-color: #67676c;
+  background-color: #888888;
+}
+
+.MoreInfo--primary {
+  color: white;
+  background-color: #0060df;
+}
+
+.MoreInfo--primary:hover {
+  background-color: #003eaa;
+}
+
+.Fingerprint {
+  font-size: 0.8em;
 }
 
 #AUTHOR_FINGERPRINT {
-  font-size: 0.8em;
   font-family: monospace;
   opacity: 0.5;
 }

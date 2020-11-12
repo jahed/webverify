@@ -30,12 +30,21 @@
         <span id="AUTHOR_NAME"></span> <a id="AUTHOR_EMAIL"></a>
       </p>
       <p id="AUTHOR_COMMENT"></p>
-      <p id="AUTHOR_FINGERPRINT"></p>
+      <p class="Fingerprint">
+        <span id="AUTHOR_FINGERPRINT"></span> <span id="AUTHOR_STATUS"></span>
+      </p>
     </div>
   </div>
-  <a class="MoreInfo" href="https://github.com/jahed/webverify">
-    More Information
-  </a>
+  <div class="ButtonRow">
+    <button id="REJECT" class="MoreInfo">
+      Reject
+    </button>
+    <button id="APPROVE" class="MoreInfo MoreInfo--primary">
+      Approve
+    </button>
+    <button id="FORGET" class="MoreInfo" style="display: none;">
+      Forget
+    </button>
   </div>
   <script src="../vendor/browser-polyfill.js"></script>
   <script src="../vendor/md5.js"></script>
