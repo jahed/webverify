@@ -1,5 +1,5 @@
 const getPublicKeys = async (keyId) => {
-  const storageKey = `keyId/${keyId}`;
+  const storageKey = `publicKeys/${keyId}`;
   let { [storageKey]: publicKeyArmored } = await browser.storage.local.get(
     storageKey
   );
