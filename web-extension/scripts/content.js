@@ -1,4 +1,10 @@
-window.addEventListener("unload", () => {
+browser.runtime.onMessage.addListener((message) => {
+  if (message.type !== "MATCHERS_REQUEST") {
+    return;
+  }
+
+  console.log("sending matchers", { href: window.location.href, message });
+
   const matchers = [];
   for (const meta of document.head.querySelectorAll('meta[name="webverify"]')) {
     const content = meta.getAttribute("content");
@@ -20,7 +26,7 @@ window.addEventListener("unload", () => {
     }
   }
   browser.runtime.sendMessage({
-    type: "UNLOAD_MATCHERS",
+    type: "MATCHERS_RESPONSE",
     payload: {
       matchers,
     },

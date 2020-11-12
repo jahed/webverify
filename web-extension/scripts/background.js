@@ -126,7 +126,7 @@ const setMatchersForTabId = (tabId, matchers = []) => {
 browser.runtime.onMessage.addListener((message, sender) => {
   const tabId = sender.tab.id;
   switch (message.type) {
-    case "UNLOAD_MATCHERS": {
+    case "MATCHERS_RESPONSE": {
       setMatchersForTabId(tabId, message.payload.matchers);
       return;
     }
@@ -140,6 +140,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
 browser.tabs.onRemoved.addListener((tabId) => {
   popupStateByTabId.delete(tabId);
   matchersByTabId.delete(tabId);
+  referringTabIdMap.delete(tabId);
 });
 
 const getUrlCacheKey = (url) => `urls/${url}`;
@@ -242,15 +243,12 @@ const getExpectedMatcher = ({ referringTabId, url }) => {
   return null;
 };
 
-/**
- * referringTabId is the tabId from which the new navigation was triggered.
- * It can be the same tabId. This is used to match and enforce expected authors.
- */
 const referringTabIdMap = new Map();
 
 const getReferringTabId = (tabId) => {
   const referringTabId = referringTabIdMap.get(tabId);
   if (referringTabId) {
+    // Only consider it a referrer for the first navigation.
     referringTabIdMap.delete(tabId);
     return referringTabId;
   }
@@ -258,6 +256,7 @@ const getReferringTabId = (tabId) => {
 };
 
 browser.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+  console.log("createdNavigationTarget", details);
   const { sourceTabId, tabId } = details;
   referringTabIdMap.set(tabId, sourceTabId);
 });
@@ -426,18 +425,23 @@ const verifyResponse = async ({ tabId }) => {
   });
 };
 
-const verifyLinkTransition = async ({ tabId, url }) => {
+const verifyLinkTransition = async ({ tabId, referringTabId, url }) => {
   console.log("verifyLinkTransition", { url });
   const { author, stateId } = getPopupStateForTabId(tabId);
   if (stateId === STATE_CACHE_MISS_ID) {
     // Skip cache misses to avoid false positives.
     return;
   }
-  const referringTabId = getReferringTabId(tabId);
   const keyId = author && author.keyId;
   const matcher = getExpectedMatcher({ referringTabId, url });
   if (matcher && matcher.keyId && matcher.keyId !== keyId) {
-    console.warn("link verification failed", { tabId, url, keyId, matcher });
+    console.warn("link verification failed", {
+      tabId,
+      referringTabId,
+      url,
+      keyId,
+      matcher,
+    });
     const searchParams = new URLSearchParams();
     searchParams.set("url", url);
     if (matcher.date) {
@@ -447,10 +451,22 @@ const verifyLinkTransition = async ({ tabId, url }) => {
       url: `/pages/unverified-link.html?${searchParams.toString()}`,
       loadReplace: true,
     });
+  } else {
+    console.log("link verification passed", {
+      tabId,
+      referringTabId,
+      url,
+      keyId,
+      matcher,
+    });
   }
 };
 
-const verifyNavigation = async ({ tabId, verifyResponsePromise }) => {
+const verifyNavigation = async ({
+  tabId,
+  referringTabId,
+  verifyResponsePromise,
+}) => {
   return new Promise((resolve, reject) => {
     const committedListener = (details) => {
       const { tabId: comittedTabId, transitionType, url } = details;
@@ -466,7 +482,7 @@ const verifyNavigation = async ({ tabId, verifyResponsePromise }) => {
       }
 
       verifyResponsePromise
-        .then(() => verifyLinkTransition({ tabId, url }))
+        .then(() => verifyLinkTransition({ tabId, referringTabId, url }))
         .then(resolve, reject);
     };
 
@@ -485,8 +501,22 @@ const verifyNavigation = async ({ tabId, verifyResponsePromise }) => {
 browser.webNavigation.onBeforeNavigate.addListener((details) => {
   console.log("beforeNavigate", { details });
   const { tabId } = details;
+  const referringTabId = getReferringTabId(tabId);
+  browser.tabs
+    .sendMessage(referringTabId, {
+      type: "MATCHERS_REQUEST",
+    })
+    .catch((error) => {
+      console.warn("failed to request matchers", {
+        tabId,
+        referringTabId,
+        error,
+      });
+      setMatchersForTabId(referringTabId, []);
+    });
+
   const verifyResponsePromise = verifyResponse({ tabId });
-  verifyNavigation({ tabId, verifyResponsePromise });
+  verifyNavigation({ tabId, referringTabId, verifyResponsePromise });
 });
 
 const connectListener = (port) => {
