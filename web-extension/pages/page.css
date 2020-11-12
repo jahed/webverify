@@ -60,6 +60,7 @@ a:hover {
   cursor: pointer;
   user-select: none;
   text-align: center;
+  color: inherit;
 }
 
 .Button:first-child {
