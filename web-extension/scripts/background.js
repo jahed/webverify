@@ -394,11 +394,23 @@ const verifyResponse = async ({ tabId }) => {
       });
     };
 
+    const beforeNavigateListener = () => {
+      browser.webNavigation.onBeforeNavigate.removeListener(
+        beforeNavigateListener
+      );
+      browser.webNavigation.onCommitted.removeListener(committedListener);
+      browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
+      browser.webRequest.onBeforeRedirect.removeListener(
+        beforeRedirectListener
+      );
+    };
+
     browser.webRequest.onBeforeRequest.addListener(
       beforeRequestListener,
       {
         urls: ["<all_urls>"],
         types: ["main_frame"],
+        tabId,
       },
       ["blocking"]
     );
@@ -406,8 +418,10 @@ const verifyResponse = async ({ tabId }) => {
     browser.webRequest.onBeforeRedirect.addListener(beforeRedirectListener, {
       urls: ["<all_urls>"],
       types: ["main_frame"],
+      tabId,
     });
 
+    browser.webNavigation.onBeforeNavigate.addListener(beforeNavigateListener);
     browser.webNavigation.onCommitted.addListener(committedListener);
   });
 };
@@ -456,6 +470,14 @@ const verifyNavigation = async ({ tabId, verifyResponsePromise }) => {
         .then(resolve, reject);
     };
 
+    const beforeNavigateListener = () => {
+      browser.webNavigation.onBeforeNavigate.removeListener(
+        beforeNavigateListener
+      );
+      browser.webNavigation.onCommitted.removeListener(committedListener);
+    };
+
+    browser.webNavigation.onBeforeNavigate.addListener(beforeNavigateListener);
     browser.webNavigation.onCommitted.addListener(committedListener);
   });
 };
