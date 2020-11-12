@@ -262,101 +262,164 @@ browser.webNavigation.onCreatedNavigationTarget.addListener((details) => {
   referringTabIdMap.set(tabId, sourceTabId);
 });
 
-const getResponseBody = async ({ requestId }) => {
+const createDetachedPromise = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { resolve, reject, promise };
+};
+
+const getResponseBody = ({ requestId }) => {
   console.log("getResponseBody", { requestId });
   if (!("filterResponseData" in browser.webRequest)) {
-    throw new Error("Browser does not allow access to response body.");
+    return {
+      promise: Promise.reject(
+        new Error("Browser does not allow access to response body.")
+      ),
+      cancel: () => {},
+    };
   }
 
-  return new Promise((resolve, reject) => {
-    const data = [];
-    const filter = browser.webRequest.filterResponseData(requestId);
+  const data = [];
+  const filter = browser.webRequest.filterResponseData(requestId);
+  const { promise, resolve, reject } = createDetachedPromise();
 
-    filter.ondata = (event) => {
-      filter.write(event.data);
-      data.push(event.data);
-    };
+  filter.ondata = (event) => {
+    filter.write(event.data);
+    data.push(event.data);
+  };
 
-    filter.onstop = () => {
+  filter.onstop = () => {
+    filter.disconnect();
+    resolve(data);
+  };
+
+  filter.onerror = () => {
+    // Fails on redirects, but after a significant delay.
+    reject(new Error(filter.error));
+  };
+
+  const cancel = () => {
+    console.warn("getResponseBody cancelling", { filter, data });
+    if (filter.status === "transferringdata") {
       filter.disconnect();
-      resolve(data);
-    };
+    }
+    reject(new Error("manually cancelled"));
+  };
 
-    filter.onerror = () => {
-      reject(new Error(filter.error));
-    };
-  });
+  return {
+    promise,
+    cancel,
+  };
 };
 
 const usePageActionFromCache = async ({ tabId, url }) => {
-  console.log("using cache", { tabId, url });
   const urlCache = await getUrlCache(url);
+  console.log("using cache", { tabId, url, urlCache });
   updatePageAction({ tabId, url, cache: true, ...urlCache });
 };
 
-const verifyResponse = async ({ tabId, url }) => {
+const verifyResponse = async ({ tabId }) => {
   return new Promise((resolve, reject) => {
-    console.log("verifyResponse", { tabId, url });
+    console.log("verifyResponse", { tabId });
+
+    let responseBodyResult;
     const beforeRequestListener = (details) => {
-      const { tabId: requestTabId, requestId } = details;
+      const { tabId: requestTabId, requestId, url } = details;
       if (requestTabId !== tabId) {
         return;
       }
       console.log("verifyResponse beforeRequest", { details });
-      browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
 
-      getResponseBody({ requestId })
-        .then((data) => verifyResponseBody({ tabId, url, data }))
-        .then(resolve, (error) => {
+      responseBodyResult = getResponseBody({ requestId });
+      responseBodyResult.promise.then(
+        (data) => {
+          browser.webRequest.onBeforeRequest.removeListener(
+            beforeRequestListener
+          );
+          return verifyResponseBody({ tabId, url, data })
+            .catch((error) => {
+              console.warn("verifyResponse beforeRequest error", error);
+              return usePageActionFromCache({ tabId, url });
+            })
+            .then(resolve, reject);
+        },
+        (error) => {
+          // Ignore redirects causing request filter to stall
           console.warn(error);
-          return usePageActionFromCache({ tabId, url });
-        })
-        .catch(reject);
+        }
+      );
 
       // Do not return blocking promise.
     };
 
+    const beforeRedirectListener = (details) => {
+      const { tabId: requestTabId, redirectUrl } = details;
+      if (requestTabId !== tabId) {
+        return;
+      }
+
+      console.log("verifyResponse beforeRedirect", { details });
+      if (responseBodyResult) {
+        responseBodyResult.cancel();
+        responseBodyResult = null;
+      }
+    };
+
     const committedListener = async (details) => {
-      const { tabId: committedTabId } = details;
+      const { tabId: committedTabId, url } = details;
       if (committedTabId !== tabId) {
         return;
       }
 
       console.log("verifyResponse committed", { details });
       browser.webNavigation.onCommitted.removeListener(committedListener);
-      if (
-        browser.webRequest.onBeforeRequest.hasListener(beforeRequestListener)
-      ) {
+      browser.webRequest.onBeforeRedirect.removeListener(
+        beforeRedirectListener
+      );
+
+      setTimeout(() => {
+        // Listeners are removed on next tick.
+        if (
+          browser.webRequest.onBeforeRequest.hasListener(beforeRequestListener)
+        ) {
+          usePageActionFromCache({ tabId, url }).then(resolve, reject);
+        }
         browser.webRequest.onBeforeRequest.removeListener(
           beforeRequestListener
         );
-        usePageActionFromCache({ tabId, url }).then(resolve, reject);
-      }
+      });
     };
 
     browser.webRequest.onBeforeRequest.addListener(
       beforeRequestListener,
       {
-        urls: [url],
+        urls: ["<all_urls>"],
         types: ["main_frame"],
       },
       ["blocking"]
     );
 
-    browser.webNavigation.onCommitted.addListener(committedListener, {
-      url: [
-        {
-          urlEquals: url,
-        },
-      ],
+    browser.webRequest.onBeforeRedirect.addListener(beforeRedirectListener, {
+      urls: ["<all_urls>"],
+      types: ["main_frame"],
     });
+
+    browser.webNavigation.onCommitted.addListener(committedListener);
   });
 };
 
-const verifyLinkTransition = async ({ tabId, url, verifyResponsePromise }) => {
-  await verifyResponsePromise;
+const verifyLinkTransition = async ({ tabId, url }) => {
+  console.log("verifyLinkTransition", { url });
+  const { author, stateId } = getPopupStateForTabId(tabId);
+  if (stateId === STATE_CACHE_MISS_ID) {
+    // Skip cache misses to avoid false positives.
+    return;
+  }
   const referringTabId = getReferringTabId(tabId);
-  const { author } = getPopupStateForTabId(tabId);
   const keyId = author && author.keyId;
   const matcher = getExpectedMatcher({ referringTabId, url });
   if (matcher && matcher.keyId && matcher.keyId !== keyId) {
@@ -373,41 +436,35 @@ const verifyLinkTransition = async ({ tabId, url, verifyResponsePromise }) => {
   }
 };
 
-const verifyNavigation = async ({ tabId, url, verifyResponsePromise }) => {
+const verifyNavigation = async ({ tabId, verifyResponsePromise }) => {
   return new Promise((resolve, reject) => {
     const committedListener = (details) => {
-      const { tabId: comittedTabId, transitionType } = details;
+      const { tabId: comittedTabId, transitionType, url } = details;
       if (comittedTabId !== tabId) {
         return;
       }
 
       browser.webNavigation.onCommitted.removeListener(committedListener);
+
       if (transitionType !== "link") {
         resolve();
         return;
       }
 
-      verifyLinkTransition({ tabId, url, verifyResponsePromise }).then(
-        resolve,
-        reject
-      );
+      verifyResponsePromise
+        .then(() => verifyLinkTransition({ tabId, url }))
+        .then(resolve, reject);
     };
 
-    browser.webNavigation.onCommitted.addListener(committedListener, {
-      url: [
-        {
-          urlEquals: url,
-        },
-      ],
-    });
+    browser.webNavigation.onCommitted.addListener(committedListener);
   });
 };
 
 browser.webNavigation.onBeforeNavigate.addListener((details) => {
   console.log("beforeNavigate", { details });
-  const { tabId, url } = details;
-  const verifyResponsePromise = verifyResponse({ tabId, url });
-  verifyNavigation({ tabId, url, verifyResponsePromise });
+  const { tabId } = details;
+  const verifyResponsePromise = verifyResponse({ tabId });
+  verifyNavigation({ tabId, verifyResponsePromise });
 });
 
 const connectListener = (port) => {
