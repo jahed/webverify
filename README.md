@@ -79,6 +79,49 @@ ZlxVaS... and so on.
 For dynamic pages, the same rules apply. Fully render your page first including
 the `<link />` tag, then generate the signature.
 
+## Linking to Signed Webpages
+
+To ensure a link to a webpage is signed by a specific author, assign the link a
+key using a `<meta>` tag.
+
+- `name` must be `webverify`
+- `content` must be one of:
+
+  - `[url_prefix] [iso_8601_date] [key_id]`
+  - `[url_prefix] [key_id]`
+
+You can use multiple tags for multiple links. The first `key_id` of the first
+`url_prefix` that matches will be enforced.
+
+The `iso_8601_date` is used for archive lookups if the author of the linked
+webpage fails to match. It must be in
+[ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format, otherwise it will be
+ignored.
+
+### Example
+
+```html
+<meta name="webverify" content="https://your.domain/ 2020-11-25 AKEY1ID123" />
+<meta name="webverify" content="https://example.com/users/bob BKEY2ID567" />
+<meta name="webverify" content="https://example.com/ CKEY3ID890" />
+```
+
+In the above example `https://example.com/users/bob/timeline` will match
+`BKEY2ID567` whereas `https://example.com/home` will match `CKEY3ID890`.
+
+### Automation
+
+The generation of `<meta>` tags can be automated by doing the following:
+
+1. Find all the links on the webpage.
+2. Fetch each page and extract the signature which contains a `key_id`
+3. Assign the current date as `iso_8601_date`
+4. Assign the link as `url_prefix`
+
+Once initially fetched, `<meta>` data should not be automatically changed. If
+your automation detects a `key_id` change, ensure any new authors are still
+valid and verified.
+
 ## License
 
 [MIT](LICENSE).
