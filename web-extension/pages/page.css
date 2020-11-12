@@ -1,0 +1,87 @@
+body {
+  color: #333333;
+  background: #eaeaea;
+  font-family: "sans-serif";
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+}
+
+main {
+  max-width: 800px;
+  margin: 4em auto;
+  padding: 0 2em;
+}
+
+h1 {
+  position: relative;
+  font-weight: normal;
+  font-size: 3em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid #888888;
+}
+
+img {
+  position: absolute;
+  right: 100%;
+  margin-right: 1em;
+  top: 0;
+  height: 1.5em;
+  width: 1.5em;
+}
+
+a {
+  color: #45a1ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.ButtonRow {
+  display: flex;
+  margin: 2em 0;
+}
+
+.ButtonSpacer {
+  flex-grow: 1;
+}
+
+.Button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 1em;
+  padding: 1em 2em;
+  border: 1px solid #888888;
+  border-radius: 2px;
+  background-color: #eaeaea;
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+}
+
+.Button:first-child {
+  margin: 0;
+}
+
+.Button:hover {
+  text-decoration: none;
+  background-color: #cccccc;
+}
+
+.Button--primary {
+  color: white;
+  background-color: #45a1ff;
+  padding: 1em 3em;
+}
+
+.Button--primary:hover {
+  background-color: #3173b7;
+}
+
+.Button--danger:hover {
+  color: white;
+  background-color: #bb002a;
+}

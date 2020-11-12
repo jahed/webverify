@@ -158,19 +158,21 @@ browser.tabs.onRemoved.addListener((tabId) => {
   matchersByTabId.delete(tabId);
 });
 
-const getUrlCacheKey = url => `urls/${url}`
+const getUrlCacheKey = (url) => `urls/${url}`;
 
 const setUrlCache = async (url, value) => {
   await browser.storage.local.set({ [getUrlCacheKey(url)]: value });
-}
+};
 
 const getUrlCache = async (url) => {
-  const key = getUrlCacheKey(url)
+  const key = getUrlCacheKey(url);
   const result = await browser.storage.local.get(key);
-  return result[key] || {
-    stateId: STATE_CACHE_MISS_ID
-  }
-}
+  return (
+    result[key] || {
+      stateId: STATE_CACHE_MISS_ID,
+    }
+  );
+};
 
 const updatePageAction = ({
   tabId,
@@ -192,14 +194,17 @@ const updatePageAction = ({
     errorMessage,
   });
 
-  setUrlCache(url, {
-    stateId,
-    author,
-    errorMessage,
-  })
+  if (!cache) {
+    setUrlCache(url, {
+      stateId,
+      author,
+      errorMessage,
+    });
+  }
 };
 
-const processDocument = async ({ tabId, url, data }) => {
+const verifyResponseBody = async ({ tabId, url, data }) => {
+  console.log("verifyResponseBody", { tabId, url });
   const blob = new Blob(data, { type: "text/html" });
   const htmlText = await blob.text();
 
@@ -212,7 +217,7 @@ const processDocument = async ({ tabId, url, data }) => {
       const author = await verifySignature(sigUrl, htmlText);
       updatePageAction({ tabId, url, stateId: STATE_VERIFIED_ID, author });
     } catch (error) {
-      console.error("verification failed", error);
+      console.warn("verification failed", error);
       updatePageAction({
         tabId,
         url,
@@ -225,21 +230,21 @@ const processDocument = async ({ tabId, url, data }) => {
   }
 };
 
-const getExpectedKeyId = ({ referringTabId, url }) => {
+const getExpectedMatcher = ({ referringTabId, url }) => {
   for (const matcher of getMatchersForTabId(referringTabId)) {
     if (url.startsWith(matcher.prefix)) {
-      return matcher.keyId;
+      return matcher;
     }
   }
   return null;
 };
 
-const referringTabIdMap = new Map();
-
 /**
  * referringTabId is the tabId from which the new navigation was triggered.
  * It can be the same tabId. This is used to match and enforce expected authors.
  */
+const referringTabIdMap = new Map();
+
 const getReferringTabId = (tabId) => {
   const referringTabId = referringTabIdMap.get(tabId);
   if (referringTabId) {
@@ -254,32 +259,13 @@ browser.webNavigation.onCreatedNavigationTarget.addListener((details) => {
   referringTabIdMap.set(tabId, sourceTabId);
 });
 
-browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
-  const { tabId, url } = navigateDetails;
-  const referringTabId = getReferringTabId(tabId);
-  let requested = false;
+const getResponseBody = async ({ requestId }) => {
+  console.log("getResponseBody", { requestId });
+  if (!("filterResponseData" in browser.webRequest)) {
+    throw new Error("Browser does not allow access to response body.");
+  }
 
-  let processDocumentResolve;
-  let processDocumentReject;
-  let processDocumentPromise = new Promise((resolve, reject) => {
-    processDocumentResolve = resolve;
-    processDocumentReject = reject;
-  });
-
-  const beforeRequestListener = (requestDetails) => {
-    const { requestId } = requestDetails;
-    requested = true;
-
-    if (!("filterResponseData" in browser.webRequest)) {
-      updatePageAction({
-        tabId,
-        url,
-        stateId: STATE_UNSUPPORTED_BROWSER_ID,
-      });
-      processDocumentResolve();
-      return;
-    }
-
+  return new Promise((resolve, reject) => {
     const data = [];
     const filter = browser.webRequest.filterResponseData(requestId);
 
@@ -288,63 +274,130 @@ browser.webNavigation.onBeforeNavigate.addListener(async (navigateDetails) => {
       filter.write(event.data);
     };
 
-    filter.onstop = async () => {
+    filter.onstop = () => {
       filter.disconnect();
-      processDocument({ tabId, url, data }).then(
-        processDocumentResolve,
-        processDocumentReject
-      );
+      resolve(data);
     };
 
     filter.onerror = () => {
-      processDocumentReject(filter.error);
+      filter.disconnect();
+      reject(filter.error);
     };
-  };
+  });
+};
 
-  const committedListener = async (committedDetails) => {
-    const { transitionType } = committedDetails;
-
-    browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
-    browser.webNavigation.onCommitted.removeListener(committedListener);
-
-    if (!requested) {
-      const urlCache = await getUrlCache(url)
-      console.warn("using cached result", { url, urlCache });
-      updatePageAction({ tabId, url, cache: true, ...urlCache });
-    }
-
-    if (transitionType === "link") {
-      if (requested) {
-        await processDocumentPromise;
-      }
-      const { author } = getPopupStateForTabId(tabId);
-      const keyId = author && author.keyId
-      const expectedKeyId = getExpectedKeyId({ referringTabId, url });
-      if (expectedKeyId && expectedKeyId !== keyId) {
-        console.warn(
-          `The link you followed expected a different author. Expected ${expectedKeyId} but got ${keyId}.`
-        );
+const verifyResponse = async ({ tabId, url }) => {
+  return new Promise((resolve, reject) => {
+    const beforeRequestListener = (details) => {
+      const { tabId: requestTabId, requestId } = details;
+      if (requestTabId !== tabId) {
         return;
       }
-    }
-  };
+      console.log("beforeRequest", { details });
+      browser.webRequest.onBeforeRequest.removeListener(beforeRequestListener);
 
-  browser.webRequest.onBeforeRequest.addListener(
-    beforeRequestListener,
-    {
-      urls: [url],
-      types: ["main_frame"],
-    },
-    ["blocking"]
-  );
+      getResponseBody({ requestId })
+        .then((data) => verifyResponseBody({ tabId, url, data }))
+        .then(resolve, reject);
 
-  browser.webNavigation.onCommitted.addListener(committedListener, {
-    url: [
+      // Do not turn blocking promise.
+    };
+
+    const committedListener = async (details) => {
+      const { tabId: committedTabId } = details;
+      if (committedTabId !== tabId) {
+        return;
+      }
+
+      browser.webNavigation.onCommitted.removeListener(committedListener);
+      if (
+        browser.webRequest.onBeforeRequest.hasListener(beforeRequestListener)
+      ) {
+        browser.webRequest.onBeforeRequest.removeListener(
+          beforeRequestListener
+        );
+        getUrlCache(url)
+          .then((urlCache) => {
+            return updatePageAction({ tabId, url, cache: true, ...urlCache });
+          })
+          .then(resolve, reject);
+      }
+    };
+
+    browser.webRequest.onBeforeRequest.addListener(
+      beforeRequestListener,
       {
-        urlEquals: url,
+        urls: [url],
+        types: ["main_frame"],
       },
-    ],
+      ["blocking"]
+    );
+
+    browser.webNavigation.onCommitted.addListener(committedListener, {
+      url: [
+        {
+          urlEquals: url,
+        },
+      ],
+    });
   });
+};
+
+const verifyLinkTransition = async ({ tabId, url, verifyResponsePromise }) => {
+  await verifyResponsePromise;
+  const referringTabId = getReferringTabId(tabId);
+  const { author } = getPopupStateForTabId(tabId);
+  const keyId = author && author.keyId;
+  const matcher = getExpectedMatcher({ referringTabId, url });
+  console.log("verifyNavigation", { tabId, url, keyId, matcher });
+  if (matcher && matcher.keyId && matcher.keyId !== keyId) {
+    const searchParams = new URLSearchParams();
+    searchParams.set("url", url);
+    if (matcher.date) {
+      searchParams.set("date", matcher.date);
+    }
+    browser.tabs.update(tabId, {
+      url: `/pages/unverified-link.html?${searchParams.toString()}`,
+      loadReplace: true,
+    });
+  }
+};
+
+const verifyNavigation = async ({ tabId, url, verifyResponsePromise }) => {
+  return new Promise((resolve, reject) => {
+    const committedListener = (details) => {
+      const { tabId: comittedTabId, transitionType } = details;
+      if (comittedTabId !== tabId) {
+        return;
+      }
+
+      browser.webNavigation.onCommitted.removeListener(committedListener);
+      if (transitionType !== "link") {
+        resolve();
+        return;
+      }
+
+      verifyLinkTransition({ tabId, url, verifyResponsePromise }).then(
+        resolve,
+        reject
+      );
+    };
+
+    browser.webNavigation.onCommitted.addListener(committedListener, {
+      url: [
+        {
+          urlEquals: url,
+        },
+      ],
+    });
+  });
+};
+
+browser.webNavigation.onBeforeNavigate.addListener((details) => {
+  console.log("beforeNavigate", { details });
+  const { tabId, url } = details;
+  const verifyResponsePromise = verifyResponse({ tabId, url });
+  verifyNavigation({ tabId, url, verifyResponsePromise });
 });
 
 const connectListener = (port) => {
