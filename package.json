@@ -1,7 +1,7 @@
 {
   "name": "webverify",
   "version": "0.1.0",
-  "description": "Verify Authorship of Webpages with OpenPGP.",
+  "description": "Verify Authorship of Webpages.",
   "repository": "https://github.com/jahed/webverify",
   "author": "Jahed Ahmed",
   "license": "MIT",

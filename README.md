@@ -2,7 +2,7 @@
 
 # WebVerify
 
-Verify Authorship of Webpages with OpenPGP.
+Verify Authorship of Webpages.
 
 ## Documentation
 

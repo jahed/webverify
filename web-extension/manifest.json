@@ -2,7 +2,9 @@
   "manifest_version": 2,
   "name": "WebVerify",
   "version": "0.1.0",
-  "description": "Verify Authorship of Webpages with OpenPGP.",
+  "author": "Jahed Ahmed",
+  "homepage_url": "https://webverify.jahed.dev",
+  "description": "Verify Authorship of Webpages.",
   "icons": {
     "48": "icons/icon.svg",
     "96": "icons/icon.svg"
