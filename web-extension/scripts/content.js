@@ -8,7 +8,7 @@ browser.runtime.onMessage.addListener((message) => {
   const matchers = [];
   for (const meta of document.head.querySelectorAll('meta[name="webverify"]')) {
     const content = meta.getAttribute("content");
-    const parts = content.split(" ", 2);
+    const parts = content.split(" ", 3);
     switch (parts.length) {
       case 2: {
         const [prefix, keyId] = parts;
