@@ -142,11 +142,39 @@ const addIgnorePublicKeyStatusForTabId = (tabId, keyId) => {
   getIgnoredPublicKeyStatusesForTabId(tabId).add(keyId);
 };
 
+const validateMatcher = (matcher) => {
+  const { keyId, date: dateString, prefix } = matcher;
+  if (!keyId || keyId.length !== 16) {
+    console.warn("invalid key_id", { matcher });
+    return false;
+  }
+  if (!prefix || !prefix.endsWith("*")) {
+    console.warn("invalid url_prefix", { matcher });
+    return false;
+  }
+  if (typeof dateString === "string") {
+    try {
+      const date = new Date(dateString);
+      if (date.toISOString() !== dateString) {
+        console.warn("invalid date", { matcher });
+        return false;
+      }
+    } catch (error) {
+      console.warn("invalid date", { matcher, error });
+      return false;
+    }
+  }
+  return true;
+};
+
 browser.runtime.onMessage.addListener((message, sender) => {
   const tabId = sender.tab.id;
   switch (message.type) {
     case "MATCHERS_RESPONSE": {
-      setMatchersForTabId(tabId, message.payload.matchers);
+      setMatchersForTabId(
+        tabId,
+        message.payload.matchers.filter((matcher) => validateMatcher(matcher))
+      );
       return;
     }
     case "IGNORE_PUBLIC_KEY_STATUS": {

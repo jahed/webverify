@@ -1,12 +1,4 @@
 (() => {
-  const parseDate = (dateString) => {
-    const date = new Date(dateString);
-    if (!date || date.toISOString() !== dateString) {
-      return null;
-    }
-    return date;
-  };
-
   const getArchiveDate = (date) => {
     if (!date) {
       return "*";
@@ -31,7 +23,7 @@
     history.back();
   });
 
-  const date = parseDate(dateString);
+  const date = new Date(dateString);
   const archive = document.getElementById("ARCHIVE");
   archive.setAttribute(
     "href",
