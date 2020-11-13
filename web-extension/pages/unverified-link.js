@@ -40,4 +40,12 @@
 
   const ignore = document.getElementById("IGNORE");
   ignore.setAttribute("href", url);
+  ignore.addEventListener("click", (event) => {
+    event.preventDefault();
+    const tabId = browser.tabs.getCurrent().id;
+    browser.tabs.update(tabId, {
+      url,
+      loadReplace: true,
+    });
+  });
 })();

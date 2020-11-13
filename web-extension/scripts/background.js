@@ -123,11 +123,34 @@ const setMatchersForTabId = (tabId, matchers = []) => {
   matchersByTabId.set(tabId, matchers);
 };
 
+const ignoredPublicKeyStatusesByTabId = new Map();
+
+const getIgnoredPublicKeyStatusesForTabId = (tabId) => {
+  let ignoredKeys = ignoredPublicKeyStatusesByTabId.get(tabId);
+  if (!ignoredKeys) {
+    ignoredKeys = new Set();
+    ignoredPublicKeyStatusesByTabId.set(tabId, ignoredKeys);
+  }
+  return ignoredKeys;
+};
+
+const isIgnoredPublicKeyForTabId = (tabId, keyId) => {
+  return getIgnoredPublicKeyStatusesForTabId(tabId).has(keyId);
+};
+
+const addIgnorePublicKeyStatusForTabId = (tabId, keyId) => {
+  getIgnoredPublicKeyStatusesForTabId(tabId).add(keyId);
+};
+
 browser.runtime.onMessage.addListener((message, sender) => {
   const tabId = sender.tab.id;
   switch (message.type) {
     case "MATCHERS_RESPONSE": {
       setMatchersForTabId(tabId, message.payload.matchers);
+      return;
+    }
+    case "IGNORE_PUBLIC_KEY_STATUS": {
+      addIgnorePublicKeyStatusForTabId(tabId, message.payload.keyId);
       return;
     }
     default: {
@@ -141,6 +164,7 @@ browser.tabs.onRemoved.addListener((tabId) => {
   popupStateByTabId.delete(tabId);
   matchersByTabId.delete(tabId);
   referringTabIdMap.delete(tabId);
+  ignoredPublicKeyStatusesByTabId.delete(tabId);
 });
 
 const getUrlCacheKey = (url) => `urls/${url}`;
@@ -159,6 +183,12 @@ const getUrlCache = async (url) => {
   );
 };
 
+const getPublicKeyStatus = async (keyId) => {
+  const statusKey = `publicKeyStatus/${keyId}`;
+  const { [statusKey]: status } = await browser.storage.local.get(statusKey);
+  return status;
+};
+
 const publicKeyStatusToIcon = {
   APPROVED: "icons/page-action-approved.svg",
   REJECTED: "icons/page-action-rejected.svg",
@@ -166,8 +196,7 @@ const publicKeyStatusToIcon = {
 
 const setPageActionIcon = async ({ tabId, stateId, keyId, icon }) => {
   if (stateId === STATE_VERIFIED_ID) {
-    const statusKey = `publicKeyStatus/${keyId}`;
-    const { [statusKey]: status } = await browser.storage.local.get(statusKey);
+    const status = await getPublicKeyStatus(keyId);
     const statusIcon = publicKeyStatusToIcon[status];
     if (statusIcon) {
       browser.pageAction.setIcon({ tabId, path: statusIcon });
@@ -425,41 +454,48 @@ const verifyResponse = async ({ tabId }) => {
   });
 };
 
-const verifyLinkTransition = async ({ tabId, referringTabId, url }) => {
+const verifyLinkTransition = async ({ tabId, referringTabId, url, keyId }) => {
   console.log("verifyLinkTransition", { url });
-  const { author, stateId } = getPopupStateForTabId(tabId);
-  if (stateId === STATE_CACHE_MISS_ID) {
-    // Skip cache misses to avoid false positives.
-    return;
-  }
-  const keyId = author && author.keyId;
   const matcher = getExpectedMatcher({ referringTabId, url });
-  if (matcher && matcher.keyId && matcher.keyId !== keyId) {
-    console.warn("link verification failed", {
-      tabId,
-      referringTabId,
-      url,
-      keyId,
-      matcher,
-    });
-    const searchParams = new URLSearchParams();
-    searchParams.set("url", url);
-    if (matcher.date) {
-      searchParams.set("date", matcher.date);
+  if (matcher && matcher.keyId) {
+    if (matcher.keyId !== keyId) {
+      console.warn("link verification failed", {
+        tabId,
+        referringTabId,
+        url,
+        keyId,
+        matcher,
+      });
+      const searchParams = new URLSearchParams();
+      searchParams.set("url", url);
+      if (matcher.date) {
+        searchParams.set("date", matcher.date);
+      }
+      return `/pages/unverified-link.html?${searchParams.toString()}`;
+    } else {
+      console.log("link verification passed", {
+        tabId,
+        referringTabId,
+        url,
+        keyId,
+        matcher,
+      });
     }
-    browser.tabs.update(tabId, {
-      url: `/pages/unverified-link.html?${searchParams.toString()}`,
-      loadReplace: true,
-    });
-  } else {
-    console.log("link verification passed", {
-      tabId,
-      referringTabId,
-      url,
-      keyId,
-      matcher,
-    });
   }
+  return null;
+};
+
+const verifyPublicKeyStatus = async ({ tabId, url, keyId }) => {
+  if (keyId && !isIgnoredPublicKeyForTabId(tabId, keyId)) {
+    const status = await getPublicKeyStatus(keyId);
+    if (status === "REJECTED") {
+      const searchParams = new URLSearchParams();
+      searchParams.set("url", url);
+      searchParams.set("keyId", keyId);
+      return `/pages/rejected.html?${searchParams.toString()}`;
+    }
+  }
+  return null;
 };
 
 const verifyNavigation = async ({
@@ -468,22 +504,44 @@ const verifyNavigation = async ({
   verifyResponsePromise,
 }) => {
   return new Promise((resolve, reject) => {
+    const verify = async ({ url, transitionType }) => {
+      await verifyResponsePromise;
+
+      const { author, stateId } = getPopupStateForTabId(tabId);
+      if (stateId === STATE_CACHE_MISS_ID) {
+        // Skip cache misses to avoid false positives.
+        return;
+      }
+
+      const keyId = author && author.keyId;
+      let replaceUrl;
+      if (transitionType === "link") {
+        replaceUrl = await verifyLinkTransition({
+          tabId,
+          referringTabId,
+          url,
+          keyId,
+        });
+      }
+      if (!replaceUrl) {
+        replaceUrl = await verifyPublicKeyStatus({ tabId, url, keyId });
+      }
+      if (replaceUrl) {
+        browser.tabs.update(tabId, {
+          url: replaceUrl,
+          loadReplace: true,
+        });
+      }
+    };
+
     const committedListener = (details) => {
-      const { tabId: comittedTabId, transitionType, url } = details;
+      const { tabId: comittedTabId, url, transitionType } = details;
       if (comittedTabId !== tabId) {
         return;
       }
 
       browser.webNavigation.onCommitted.removeListener(committedListener);
-
-      if (transitionType !== "link") {
-        resolve();
-        return;
-      }
-
-      verifyResponsePromise
-        .then(() => verifyLinkTransition({ tabId, referringTabId, url }))
-        .then(resolve, reject);
+      verify({ url, transitionType }).then(resolve, reject);
     };
 
     const beforeNavigateListener = () => {
