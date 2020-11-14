@@ -18,14 +18,13 @@ stop all those links going to fishy websites?
 WebVerify provides a proof-of-concept solution to exactly this problem. To
 summarise:
 
-- Authors sign their web pages.
-- Signatures enforce content and authorship.
+- Authors sign web pages.
 - Links enforce authorship.
 - Readers verify authors.
 
 ![A Verified Page](https://www-static.jahed.dev/2020/wv/2020-11-12-wv-preview.png)
 
-[Continue reading at the documentation website.](https://webverify.jahed.dev)
+[Continue reading to find out how it works.](https://webverify.jahed.dev)
 
 ## License
 
