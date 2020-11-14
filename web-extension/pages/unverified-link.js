@@ -1,9 +1,10 @@
 (() => {
-  const getArchiveDate = (date) => {
-    if (!date) {
+  const getArchiveDate = (dateString) => {
+    if (!dateString) {
       return "*";
     }
 
+    const date = new Date(dateString);
     return [
       `${date.getFullYear()}`.padStart(4, "0"),
       `${date.getMonth() + 1}`.padStart(2, "0"),
@@ -23,11 +24,10 @@
     history.back();
   });
 
-  const date = new Date(dateString);
   const archive = document.getElementById("ARCHIVE");
   archive.setAttribute(
     "href",
-    `https://web.archive.org/web/${getArchiveDate(date)}/${url}`
+    `https://web.archive.org/web/${getArchiveDate(dateString)}/${url}`
   );
 
   const ignore = document.getElementById("IGNORE");
