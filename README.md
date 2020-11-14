@@ -22,7 +22,7 @@ summarise:
 - Links enforce authorship.
 - Readers verify authors.
 
-![A Verified Page](https://www-static.jahed.dev/2020/wv/2020-11-12-wv-preview.png)
+![A Verified Page](https://www-static.jahed.dev/2020/2020-11-12-wv-preview.png)
 
 [Continue reading to find out how it works.](https://webverify.jahed.dev)
 
