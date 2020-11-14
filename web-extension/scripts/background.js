@@ -293,7 +293,9 @@ const verifyResponseBody = async ({ tabId, url, data }) => {
 
 const getExpectedMatcher = ({ referringTabId, url }) => {
   for (const matcher of getMatchersForTabId(referringTabId)) {
-    if (url.startsWith(matcher.prefix)) {
+    if (
+      url.startsWith(matcher.prefix.substring(0, matcher.prefix.length - 1))
+    ) {
       return matcher;
     }
   }
