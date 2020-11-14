@@ -1,6 +1,6 @@
 {
   "name": "webverify",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Verify Authorship of Webpages.",
   "repository": "https://github.com/jahed/webverify",
   "author": "Jahed Ahmed",
