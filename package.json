@@ -6,10 +6,10 @@
   "repository": "https://github.com/jahed/webverify",
   "author": "Jahed Ahmed",
   "license": "MIT",
+  "private": true,
   "scripts": {
     "web-ext": "web-ext -c web-ext.config.js",
-    "start": "yarn web-ext run",
-    "build": "./build.sh"
+    "start": "yarn web-ext run"
   },
   "devDependencies": {
     "prettier": "2.1.2",
