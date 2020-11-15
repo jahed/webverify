@@ -1,5 +1,6 @@
 node_modules
 build
 web-extension/vendor
+web-extension/manifest.json
 .web-extension-id
 /sign.sh
