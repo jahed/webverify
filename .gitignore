@@ -2,3 +2,4 @@ node_modules
 build
 web-extension/vendor
 .web-extension-id
+/sign.sh
