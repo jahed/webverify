@@ -7,7 +7,7 @@ yarn install
 echo
 echo 'Copying vendor scripts'
 vendor_dir='web-extension/vendor'
-rm -r "${vendor_dir}"
+rm -rf "${vendor_dir}"
 mkdir -p "${vendor_dir}"
 cp node_modules/openpgp/dist/openpgp.min.js "${vendor_dir}/openpgp.js"
 cp node_modules/webextension-polyfill/dist/browser-polyfill.min.js "${vendor_dir}/browser-polyfill.js"
