@@ -9,11 +9,20 @@ const getPublicKeys = async (keyId) => {
     const hkp = new openpgp.HKP("https://keys.openpgp.org");
     publicKeyArmored = await hkp.lookup({ keyId });
 
-    await browser.storage.local.set({ [storageKey]: publicKeyArmored });
+    if (publicKeyArmored) {
+      await browser.storage.local.set({ [storageKey]: publicKeyArmored });
+    }
   }
 
-  const { keys } = await openpgp.key.readArmored(publicKeyArmored);
-  return keys;
+  if (!publicKeyArmored) {
+    throw new Error('Public key not found.')
+  }
+
+  const readArmoredResult = await openpgp.key.readArmored(publicKeyArmored);
+  if (readArmoredResult.err && readArmoredResult.err[0]) {
+    throw readArmoredResult.err[0]
+  }
+  return readArmoredResult.keys;
 };
 
 const parseFingerprint = (fingerprint) => {
