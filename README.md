@@ -82,8 +82,9 @@ SRI is not available for all content, like images. However, [according to the sp
 
 Support for HTTP Headers will be added in the future.
 
-
 ## Linking to signed pages
+
+Links enforce authorship.
 
 To ensure a link to a web page is signed by a specific author, assign the link a key using a `<meta>` tag.
 
@@ -131,6 +132,8 @@ Once initially fetched, `<meta>` data should not be automatically changed. If yo
 To ensure pages have valid archives to fall back to for the given date, make sure it's saved in the [Internet Archive](https://archive.org/web/).
 
 ## Verifying authors
+
+Readers verify authors.
 
 Just because a page is verified does not mean the author is credible. They may be impersonating someone else (in which case their Key ID won't match the real person), or they might just have the same name.
 
