@@ -151,8 +151,6 @@ Rejecting an author highlights their icon in blue with a red line across. Visiti
 
 Once you have [installed the web extension](#installation), you can test it out on [the examples page](https://jahed.github.io/webverify/examples/index.html).
 
----
-
 ## Web extension
 
 ### Installation
