@@ -147,7 +147,7 @@ Rejecting an author highlights their icon in blue with a red line across. Visiti
 
 ![A redirect page shown when the author is rejected.](assets/author-rejected.png)
 
-## Examples
+## Example pages
 
 Once you have [installed the web extension](#installation), you can test it out on [the examples page](https://jahed.github.io/webverify/examples/index.html).
 
@@ -173,7 +173,7 @@ If you choose not to install the XPI from the download prompt, you can install i
 5. Choose the XPI you just downloaded.
 6. You're done!
 
-#### Contributing
+### Contributing
 
 You will need the latest Node LTS and Yarn installed.
 
@@ -188,3 +188,15 @@ cd webverify
 This will install dependencies and launch Firefox using the `web-ext` profile with the extension installed and will automatically reload it when there are any file changes.
 
 `web-ext` makes config changes so using any other profile is not recommended. Any changes you make within the `web-ext` window will not be saved. To make permanent changes, launch the `web-ext` profile from `about:profiles`.
+
+## Special thanks
+
+WebVerify would not be possible without the work of many other projects.
+
+* [OpenPGP.js](https://github.com/openpgpjs/openpgpjs) - A JavaScript implementation of the OpenPGP protocol.
+* [keys.openpgp.org](https://keys.openpgp.org) - An OpenPGP Key Server with verified emails and a focus on privacy.
+* [Mozilla Firefox](https://www.mozilla.org/en-GB/firefox/) - Allows [direct access to response data](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest/filterResponseData) \(though with a few caveats\).
+* [Libravatar](https://www.libravatar.org/) - Universal email-based avatars.
+* [js-md5](https://github.com/emn178/js-md5) - A JavaScript implementation of MD5.
+* [Internet Archive](https://archive.org) - Archives web pages.
+* [Cloudflare](https://www.cloudflare.com/) - Provides a [DNS-over-HTTPS JSON endpoint](https://developers.cloudflare.com/1.1.1.1/dns-over-https/json-format) used for Libravatar's DNS-based federation.
